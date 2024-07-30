@@ -80,6 +80,17 @@
         #clearHistory:hover {
             background-color: #e0e0e0;
         }
+        #uploadLink {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.9em;
+            color: #666;
+            text-decoration: none;
+        }
+        #uploadLink:hover {
+            text-decoration: underline;
+        }
         @media (max-width: 600px) {
             .container {
                 padding: 10px;
@@ -90,10 +101,6 @@
 <body>
     <div class="container">
         <h1>随机餐厅选择器</h1>
-        <div class="form-group">
-            <label for="csvFile">上传CSV文件（可选）：</label>
-            <input type="file" id="csvFile" accept=".csv">
-        </div>
         <div class="form-group">
             <label for="citySelect">选择城市：</label>
             <select id="citySelect">
@@ -117,6 +124,8 @@
             <tbody></tbody>
         </table>
         <button id="clearHistory">清除历史记录</button>
+        <a href="#" id="uploadLink">上传自定义餐厅数据</a>
+        <input type="file" id="csvFile" accept=".csv" style="display: none;">
     </div>
 
     <script>
@@ -125,6 +134,11 @@
 
         document.addEventListener('DOMContentLoaded', function() {
             loadDefaultCSV();
+        });
+
+        document.getElementById('uploadLink').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('csvFile').click();
         });
 
         document.getElementById('csvFile').addEventListener('change', handleFileSelect);
@@ -137,11 +151,21 @@
                 .then(response => response.text())
                 .then(csvData => {
                     processCSVData(csvData);
+                    setDefaultCity();
                 })
                 .catch(error => {
                     console.error('Error loading default CSV file:', error);
                     // 如果加载失败，可以在这里添加一些默认数据或错误提示
                 });
+        }
+
+        function setDefaultCity() {
+            const citySelect = document.getElementById('citySelect');
+            const beijingOption = Array.from(citySelect.options).find(option => option.text === '北京');
+            if (beijingOption) {
+                beijingOption.selected = true;
+                updateRestaurantCount();
+            }
         }
 
         function handleFileSelect(event) {
