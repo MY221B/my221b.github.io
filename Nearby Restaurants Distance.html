@@ -372,4 +372,12 @@
             const file = event.target.files[0];
             if (file) {
                 const reader = new FileReader();
-                reader.onload =
+                reader.onload = function(e) {
+                    processCSVData(e.target.result);
+                };
+                reader.readAsText(file);
+            }
+        }
+    </script>
+</body>
+</html>
