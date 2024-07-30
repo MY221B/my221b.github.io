@@ -6,7 +6,6 @@
     <title>随机餐厅选择器</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <style>
-        /* 保持原有的样式不变 */
         body {
             font-family: Arial, sans-serif;
             line-height: 1.6;
@@ -111,7 +110,7 @@
                     <th>地址</th>
                     <th>城市</th>
                     <th>电话</th>
-                    <th>收藏时间</th>
+                    <th>已收藏天数</th>
                     <th>链接</th>
                 </tr>
             </thead>
@@ -165,7 +164,7 @@
                         .filter(row => row['名称'] && row['名称'].trim() !== '')
                         .map(row => ({
                             name: row['名称'] || '未提供',
-                            url: row['J_shopt href'] || '#',
+                            url: convertToMobileUrl(row['J_shopt href']) || '#',
                             address: row['地址'] || '未提供',
                             city: row['city'] ? row['city'].replace(/[\[\]]/g, '') : '未提供',
                             tel: row['tel'] || '未提供',
@@ -175,6 +174,11 @@
                     updateRestaurantCount();
                 }
             });
+        }
+
+        function convertToMobileUrl(url) {
+            if (!url) return '#';
+            return url.replace('https://www.dianping.com/shop/', 'https://m.dianping.com/shopshare/');
         }
 
         function updateCityList() {
@@ -215,25 +219,35 @@
 
         function displayRestaurantInfo(restaurant) {
             const resultDiv = document.getElementById('result');
+            const daysSinceFavorited = calculateDaysSinceFavorited(restaurant.time);
             resultDiv.innerHTML = `
                 <h2>${restaurant.name}</h2>
                 <p>地址：${restaurant.address}</p>
                 <p>城市：${restaurant.city}</p>
                 <p>电话：${restaurant.tel}</p>
-                <p>收藏时间：${restaurant.time}</p>
+                <p>已收藏 ${daysSinceFavorited} 天</p>
                 <p><a href="${restaurant.url}" target="_blank">在大众点评查看更多信息</a></p>
             `;
+        }
+
+        function calculateDaysSinceFavorited(favoriteDate) {
+            const today = new Date();
+            const favoriteDateObj = new Date(favoriteDate);
+            const diffTime = Math.abs(today - favoriteDateObj);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return diffDays;
         }
 
         function addToHistory(restaurant) {
             const historyTable = document.getElementById('historyTable').getElementsByTagName('tbody')[0];
             const row = historyTable.insertRow(0);
+            const daysSinceFavorited = calculateDaysSinceFavorited(restaurant.time);
             row.innerHTML = `
                 <td>${restaurant.name}</td>
                 <td>${restaurant.address}</td>
                 <td>${restaurant.city}</td>
                 <td>${restaurant.tel}</td>
-                <td>${restaurant.time}</td>
+                <td>${daysSinceFavorited} 天</td>
                 <td><a href="${restaurant.url}" target="_blank">查看</a></td>
             `;
         }
