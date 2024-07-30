@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>随机餐厅选择器</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <style>
+        /* 保持原有的样式不变 */
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        select, button {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #e9e9e9;
+            border-radius: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        #clearHistory {
+            background-color: #f0f0f0;
+            color: #333;
+            border: 1px solid #ddd;
+            padding: 5px 10px;
+            font-size: 14px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+        #clearHistory:hover {
+            background-color: #e0e0e0;
+        }
+        @media (max-width: 600px) {
+            .container {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>随机餐厅选择器</h1>
+        <div class="form-group">
+            <label for="csvFile">上传CSV文件（可选）：</label>
+            <input type="file" id="csvFile" accept=".csv">
+        </div>
+        <div class="form-group">
+            <label for="citySelect">选择城市：</label>
+            <select id="citySelect">
+                <option value="all">所有城市</option>
+            </select>
+        </div>
+        <div id="restaurantCount"></div>
+        <button id="randomSelect">随机选择餐厅</button>
+        <div id="result"></div>
+        <table id="historyTable">
+            <thead>
+                <tr>
+                    <th>名称</th>
+                    <th>地址</th>
+                    <th>城市</th>
+                    <th>电话</th>
+                    <th>收藏时间</th>
+                    <th>链接</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <button id="clearHistory">清除历史记录</button>
+    </div>
+
+    <script>
+        let restaurants = [];
+        let cities = new Set();
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDefaultCSV();
+        });
+
+        document.getElementById('csvFile').addEventListener('change', handleFileSelect);
+        document.getElementById('citySelect').addEventListener('change', updateRestaurantCount);
+        document.getElementById('randomSelect').addEventListener('click', selectRandomRestaurant);
+        document.getElementById('clearHistory').addEventListener('click', clearHistory);
+
+        function loadDefaultCSV() {
+            fetch('restaurants.csv')
+                .then(response => response.text())
+                .then(csvData => {
+                    processCSVData(csvData);
+                })
+                .catch(error => {
+                    console.error('Error loading default CSV file:', error);
+                    // 如果加载失败，可以在这里添加一些默认数据或错误提示
+                });
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    processCSVData(e.target.result);
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function processCSVData(csvData) {
+            Papa.parse(csvData, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    restaurants = results.data
+                        .filter(row => row['名称'] && row['名称'].trim() !== '')
+                        .map(row => ({
+                            name: row['名称'] || '未提供',
+                            url: row['J_shopt href'] || '#',
+                            address: row['地址'] || '未提供',
+                            city: row['city'] ? row['city'].replace(/[\[\]]/g, '') : '未提供',
+                            tel: row['tel'] || '未提供',
+                            time: row['time'] || '未提供'
+                        }));
+                    updateCityList();
+                    updateRestaurantCount();
+                }
+            });
+        }
+
+        function updateCityList() {
+            cities = new Set(restaurants.map(r => r.city));
+            const citySelect = document.getElementById('citySelect');
+            citySelect.innerHTML = '<option value="all">所有城市</option>';
+            cities.forEach(city => {
+                const option = document.createElement('option');
+                option.value = city;
+                option.textContent = city;
+                citySelect.appendChild(option);
+            });
+        }
+
+        function updateRestaurantCount() {
+            const selectedCity = document.getElementById('citySelect').value;
+            const count = selectedCity === 'all'
+                ? restaurants.length
+                : restaurants.filter(r => r.city === selectedCity).length;
+            document.getElementById('restaurantCount').textContent = `当前选择中有 ${count} 家餐厅`;
+        }
+
+        function selectRandomRestaurant() {
+            const selectedCity = document.getElementById('citySelect').value;
+            const filteredRestaurants = selectedCity === 'all'
+                ? restaurants
+                : restaurants.filter(r => r.city === selectedCity);
+
+            if (filteredRestaurants.length === 0) {
+                document.getElementById('result').innerHTML = '没有找到符合条件的餐厅';
+                return;
+            }
+
+            const randomRestaurant = filteredRestaurants[Math.floor(Math.random() * filteredRestaurants.length)];
+            displayRestaurantInfo(randomRestaurant);
+            addToHistory(randomRestaurant);
+        }
+
+        function displayRestaurantInfo(restaurant) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `
+                <h2>${restaurant.name}</h2>
+                <p>地址：${restaurant.address}</p>
+                <p>城市：${restaurant.city}</p>
+                <p>电话：${restaurant.tel}</p>
+                <p>收藏时间：${restaurant.time}</p>
+                <p><a href="${restaurant.url}" target="_blank">在大众点评查看更多信息</a></p>
+            `;
+        }
+
+        function addToHistory(restaurant) {
+            const historyTable = document.getElementById('historyTable').getElementsByTagName('tbody')[0];
+            const row = historyTable.insertRow(0);
+            row.innerHTML = `
+                <td>${restaurant.name}</td>
+                <td>${restaurant.address}</td>
+                <td>${restaurant.city}</td>
+                <td>${restaurant.tel}</td>
+                <td>${restaurant.time}</td>
+                <td><a href="${restaurant.url}" target="_blank">查看</a></td>
+            `;
+        }
+
+        function clearHistory() {
+            const historyTable = document.getElementById('historyTable').getElementsByTagName('tbody')[0];
+            historyTable.innerHTML = '';
+        }
+    </script>
+</body>
+</html>
