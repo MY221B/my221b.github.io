@@ -133,6 +133,7 @@
                 <option value="all">所有城市</option>
             </select>
         </div>
+        <div id="timeFilterContainer"></div>  <!-- 新添加的时间筛选器容器 -->
         <div id="restaurantCount"></div>
         <button id="randomSelect">随机选择餐厅</button>
         <div id="result"></div>
@@ -166,7 +167,7 @@
         });
 
         function loadDefaultCSV() {
-            fetch('https://raw.githubusercontent.com/MY221B/my221b.github.io/main/restaurants.csv')
+            fetch('https://raw.githubusercontent.com/MY221B/my221b.github.io/main/restaurants_with_distances.csv')
                 .then(response => response.text())
                 .then(csvData => {
                     processCSVData(csvData);
@@ -227,14 +228,22 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === '1' && data.geocodes.length > 0) {
-                        const location = data.geocodes[0].location.split(',');
+                        const geocode = data.geocodes[0];
+                        const location = geocode.location.split(',');
                         userPosition = {
                             lng: parseFloat(location[0]),
                             lat: parseFloat(location[1])
                         };
                         console.log('User position updated:', userPosition);
                         document.getElementById('addressInput').placeholder = "已成功获取当前地址";
+                        
+                        // 获取城市信息并更新城市选择器
+                        const city = geocode.city;
+                        console.log('User city:', city);
+                        updateCitySelect(city);
+                        
                         alert('位置已更新');
+                        calculateNearestLocation(userPosition);  // 计算最近位置
                     } else {
                         alert('无法找到该位置，请尝试更详细的地址');
                     }
@@ -248,9 +257,13 @@
 
         function selectRandomRestaurant() {
             const selectedCity = document.getElementById('citySelect').value;
-            const filteredRestaurants = selectedCity === 'all'
-                ? restaurants
-                : restaurants.filter(r => r.city === selectedCity);
+            const maxTime = document.getElementById('timeFilter') ? parseInt(document.getElementById('timeFilter').value) : Infinity;
+
+            const filteredRestaurants = restaurants.filter(r => {
+                const cityMatch = selectedCity === 'all' || r.city === selectedCity;
+                const timeMatch = minDrivingTime > 10 || parseInt(r[`${nearestLocation}时间`]) <= maxTime;
+                return cityMatch && timeMatch;
+            });
 
             if (filteredRestaurants.length === 0) {
                 document.getElementById('result').innerHTML = '没有找到符合条件的餐厅';
@@ -366,10 +379,10 @@
             const daysSinceFavorited = calculateDaysSinceFavorited(restaurant.time);
             resultDiv.innerHTML = `
                 <h2>${restaurant.name}</h2>
-                <p>地址：${restaurant.address}</p>
                 <p>已收藏 ${daysSinceFavorited} 天</p>
-                <p><a href="${restaurant.url}" target="_blank">在大众点评查看更多信息</a></p>
                 <div id="distance-info">计算距离中...</div>
+                <p><a href="${restaurant.url}" target="_blank">在大众点评查看更多信息</a></p>
+                <p>地址：${restaurant.address}</p>
                 <p>城市：${restaurant.city}</p>
                 <p>电话：${restaurant.tel}</p>
             `;
@@ -387,11 +400,48 @@
             });
         }
 
+        function updateCitySelect(city) {
+            const citySelect = document.getElementById('citySelect');
+            const normalizedCity = city.endsWith('市') ? city : city + '市';
+            
+            const cityOption = Array.from(citySelect.options).find(option => {
+                const optionCity = option.value.replace(/^\[|\]$/g, ''); // 移除开头的 [ 和结尾的 ]
+                return optionCity === normalizedCity || optionCity + '市' === normalizedCity;
+            });
+            
+            if (cityOption) {
+                citySelect.value = cityOption.value;
+                console.log(`City "${city}" matched with option "${cityOption.text}"`);
+            } else {
+                console.log(`City "${city}" not found in options, keeping current selection.`);
+            }
+            
+            // 触发 change 事件以更新餐厅计数
+            citySelect.dispatchEvent(new Event('change'));
+        }
+
+        function updateCityList() {
+            const cities = [...new Set(restaurants.map(r => r.city))];
+            const citySelect = document.getElementById('citySelect');
+            citySelect.innerHTML = '<option value="all">所有城市</option>';
+            cities.forEach(city => {
+                const option = document.createElement('option');
+                option.value = city; // 保持原有格式
+                option.textContent = city; // 保持原有格式
+                citySelect.appendChild(option);
+            });
+        }
+
         function updateRestaurantCount() {
             const selectedCity = document.getElementById('citySelect').value;
-            const count = selectedCity === 'all'
-                ? restaurants.length
-                : restaurants.filter(r => r.city === selectedCity).length;
+            const maxTime = document.getElementById('timeFilter') ? parseInt(document.getElementById('timeFilter').value) : Infinity;
+
+            const count = restaurants.filter(r => {
+                const cityMatch = selectedCity === 'all' || r.city === selectedCity;
+                const timeMatch = minDrivingTime > 10 || parseInt(r[`${nearestLocation}时间`]) <= maxTime;
+                return cityMatch && timeMatch;
+            }).length;
+
             document.getElementById('restaurantCount').textContent = `当前选择中有 ${count} 家餐厅`;
         }
 
@@ -458,6 +508,112 @@
                 };
                 reader.readAsText(file);
             }
+        }
+
+        let savedLocations = [];
+
+        function extractSavedLocations(restaurants) {
+            const locationSet = new Set();
+            restaurants.forEach(restaurant => {
+                Object.keys(restaurant).forEach(key => {
+                    if (key.endsWith('距离')) {
+                        const location = key.replace('距离', '');
+                        locationSet.add(location);
+                    }
+                });
+            });
+            savedLocations = Array.from(locationSet);
+            console.log('Saved locations:', savedLocations);
+        }
+
+        function processCSVData(csvData) {
+            Papa.parse(csvData, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    restaurants = results.data
+                        .filter(row => row['名称'] && row['名称'].trim() !== '')
+                        .map(row => ({
+                            name: row['名称'] || '未提供',
+                            url: convertToMobileUrl(row['J_shopt href']) || '#',
+                            address: row['地址'] || '未提供',
+                            city: row['city'] ? row['city'].replace(/[\[\]]/g, '') : '未提供',
+                            tel: row['tel'] || '未提供',
+                            time: row['time'] || '未提供',
+                            ...row  // 保留所有原始数据，包括距离和时间列
+                        }));
+                    extractSavedLocations(restaurants);  // 提取保存的位置
+                    updateCityList();
+                    updateRestaurantCount();
+                }
+            });
+        }
+
+        let nearestLocation = null;
+        let minDrivingTime = Infinity;
+
+        function calculateNearestLocation(userPosition) {
+            console.log('Calculating nearest location for user position:', userPosition);
+            nearestLocation = null;
+            minDrivingTime = Infinity;
+
+            const promises = savedLocations.map(location => {
+                const geocodeUrl = `https://restapi.amap.com/v3/geocode/geo?address=${encodeURIComponent(location)}&output=json&key=${API_KEY}`;
+                return fetch(geocodeUrl)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === '1' && data.geocodes.length > 0) {
+                            const [lng, lat] = data.geocodes[0].location.split(',');
+                            const drivingUrl = `https://restapi.amap.com/v3/direction/driving?origin=${userPosition.lng},${userPosition.lat}&destination=${lng},${lat}&extensions=base&key=${API_KEY}`;
+                            return fetch(drivingUrl)
+                                .then(response => response.json())
+                                .then(data => {
+                                    if (data.status === '1' && data.route && data.route.paths && data.route.paths.length > 0) {
+                                        const drivingTime = parseInt(data.route.paths[0].duration) / 60;  // 转换为分钟
+                                        console.log(`Driving time to ${location}: ${drivingTime} minutes`);
+                                        return { location, drivingTime };
+                                    }
+                                    console.log(`Unable to calculate driving time to ${location}`);
+                                    return null;
+                                });
+                        }
+                        console.log(`Unable to geocode location: ${location}`);
+                        return null;
+                    });
+            });
+
+            Promise.all(promises)
+                .then(results => {
+                    results.forEach(result => {
+                        if (result && result.drivingTime < minDrivingTime) {
+                            minDrivingTime = result.drivingTime;
+                            nearestLocation = result.location;
+                        }
+                    });
+                    console.log(`Nearest location: ${nearestLocation}, Driving time: ${minDrivingTime} minutes`);
+                    updateTimeFilterUI();
+                    updateRestaurantCount();  // 确保在计算完成后更新餐厅计数
+                });
+        }
+
+        // 在时间筛选器的 input 事件监听器中调用 updateRestaurantCount
+        function updateTimeFilterUI() {
+            const filterContainer = document.getElementById('timeFilterContainer');
+            if (minDrivingTime <= 10) {
+                filterContainer.style.display = 'block';
+                filterContainer.innerHTML = `
+                    <label for="timeFilter">选择最大行驶时间（分钟）：</label>
+                    <input type="range" id="timeFilter" min="0" max="120" step="5" value="30">
+                    <span id="timeFilterValue">30</span>
+                `;
+                document.getElementById('timeFilter').addEventListener('input', function() {
+                    document.getElementById('timeFilterValue').textContent = this.value;
+                    updateRestaurantCount();  // 添加这行
+                });
+            } else {
+                filterContainer.style.display = 'none';
+            }
+            updateRestaurantCount();  // 确保在UI更新后立即更新计数
         }
     </script>
 </body>
