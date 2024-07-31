@@ -32,11 +32,12 @@
             display: block;
             margin-bottom: 5px;
         }
-        select, button {
+        select, button, input[type="file"], input[type="text"] {
             width: 100%;
             padding: 8px;
             border: 1px solid #ddd;
             border-radius: 4px;
+            margin-bottom: 10px;
         }
         button {
             background-color: #4CAF50;
@@ -68,7 +69,7 @@
             background-color: #4CAF50;
             color: white;
         }
-        #clearHistory {
+        #clearHistory, #uploadLink {
             background-color: #f0f0f0;
             color: #333;
             border: 1px solid #ddd;
@@ -77,30 +78,43 @@
             margin-top: 10px;
             cursor: pointer;
         }
-        #clearHistory:hover {
+        #clearHistory:hover, #uploadLink:hover {
             background-color: #e0e0e0;
         }
         #uploadLink {
-            display: block;
-            text-align: center;
-            margin-top: 20px;
-            font-size: 0.9em;
-            color: #666;
+            display: inline-block;
             text-decoration: none;
         }
-        #uploadLink:hover {
-            text-decoration: underline;
+        #csvFile {
+            display: none;
         }
-        @media (max-width: 600px) {
-            .container {
-                padding: 10px;
-            }
+        /* 新增样式 */
+        #locationInput {
+            display: flex;
+            margin-bottom: 15px;
+        }
+        #locationInput input {
+            flex-grow: 1;
+            margin-right: 10px;
+        }
+        #locationInput button {
+            width: auto;
+        }
+        .truncate {
+            max-width: 150px; /* 调整宽度以适应您的布局 */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>随机餐厅选择器</h1>
+        <div id="locationInput">
+            <input type="text" id="addressInput" placeholder="输入您的位置（例如：北京市朝阳区）">
+            <button id="searchLocation">搜索位置</button>
+        </div>
         <div class="form-group">
             <label for="citySelect">选择城市：</label>
             <select id="citySelect">
@@ -115,9 +129,9 @@
                 <tr>
                     <th>名称</th>
                     <th>地址</th>
-                    <th>城市</th>
-                    <th>电话</th>
-                    <th>已收藏天数</th>
+                    <th>距离</th>
+                    <th>时间</th>
+                    <th>收藏</th>
                     <th>链接</th>
                 </tr>
             </thead>
@@ -125,58 +139,27 @@
         </table>
         <button id="clearHistory">清除历史记录</button>
         <a href="#" id="uploadLink">上传自定义餐厅数据</a>
-        <input type="file" id="csvFile" accept=".csv" style="display: none;">
+        <input type="file" id="csvFile" accept=".csv">
     </div>
 
     <script>
         let restaurants = [];
-        let cities = new Set();
+        let userPosition;
+
+        const API_KEY = 'd111bbe935342b4ac8d1707ff6523552'; // 请替换为您的实际 API key
 
         document.addEventListener('DOMContentLoaded', function() {
             loadDefaultCSV();
+            requestUserLocation();
         });
-
-        document.getElementById('uploadLink').addEventListener('click', function(e) {
-            e.preventDefault();
-            document.getElementById('csvFile').click();
-        });
-
-        document.getElementById('csvFile').addEventListener('change', handleFileSelect);
-        document.getElementById('citySelect').addEventListener('change', updateRestaurantCount);
-        document.getElementById('randomSelect').addEventListener('click', selectRandomRestaurant);
-        document.getElementById('clearHistory').addEventListener('click', clearHistory);
 
         function loadDefaultCSV() {
-            fetch('restaurants.csv')
+            fetch('https://raw.githubusercontent.com/你的GitHub用户名/你的仓库名/main/restaurants.csv')
                 .then(response => response.text())
                 .then(csvData => {
                     processCSVData(csvData);
-                    setDefaultCity();
                 })
-                .catch(error => {
-                    console.error('Error loading default CSV file:', error);
-                    // 如果加载失败，可以在这里添加一些默认数据或错误提示
-                });
-        }
-
-        function setDefaultCity() {
-            const citySelect = document.getElementById('citySelect');
-            const beijingOption = Array.from(citySelect.options).find(option => option.text === '北京');
-            if (beijingOption) {
-                beijingOption.selected = true;
-                updateRestaurantCount();
-            }
-        }
-
-        function handleFileSelect(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    processCSVData(e.target.result);
-                };
-                reader.readAsText(file);
-            }
+                .catch(error => console.error('Error loading default CSV file:', error));
         }
 
         function processCSVData(csvData) {
@@ -200,13 +183,191 @@
             });
         }
 
-        function convertToMobileUrl(url) {
-            if (!url) return '#';
-            return url.replace('https://www.dianping.com/shop/', 'https://m.dianping.com/shopshare/');
+        function requestUserLocation() {
+            console.log('Requesting user location...');
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    userPosition = {
+                        lng: position.coords.longitude,
+                        lat: position.coords.latitude
+                    };
+                    console.log('User position obtained:', userPosition);
+                }, function(error) {
+                    console.error('Error getting user location:', error);
+                    alert('无法自动获取您的位置。您可以手动输入位置。');
+                });
+            } else {
+                console.log("Geolocation is not supported by this browser.");
+                alert('您的浏览器不支持地理位置功能。您可以手动输入位置。');
+            }
+        }
+
+        function searchLocation() {
+            const address = document.getElementById('addressInput').value;
+            console.log('Searching for location:', address);
+            if (!address) {
+                console.log('No address entered');
+                alert('请输入位置');
+                return;
+            }
+
+            const geocodeUrl = `https://restapi.amap.com/v3/geocode/geo?address=${encodeURIComponent(address)}&output=json&key=${API_KEY}`;
+            
+            console.log('Sending geocode request to:', geocodeUrl);
+            fetch(geocodeUrl)
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Geocode response:', data);
+                    if (data.status === '1' && data.geocodes.length > 0) {
+                        const location = data.geocodes[0].location.split(',');
+                        userPosition = {
+                            lng: parseFloat(location[0]),
+                            lat: parseFloat(location[1])
+                        };
+                        console.log('User position updated:', userPosition);
+                        alert('位置已更新');
+                    } else {
+                        console.log('Location not found');
+                        alert('无法找到该位置，请尝试更详细的地址');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error in geocode request:', error);
+                    alert('位置搜索失败，请稍后重试');
+                });
+        }
+
+        function selectRandomRestaurant() {
+            const selectedCity = document.getElementById('citySelect').value;
+            const filteredRestaurants = selectedCity === 'all'
+                ? restaurants
+                : restaurants.filter(r => r.city === selectedCity);
+
+            if (filteredRestaurants.length === 0) {
+                document.getElementById('result').innerHTML = '没有找到符合条件的餐厅';
+                return;
+            }
+
+            const randomRestaurant = filteredRestaurants[Math.floor(Math.random() * filteredRestaurants.length)];
+            displayRestaurantInfo(randomRestaurant);
+            
+            if (userPosition) {
+                console.log('Calculating distance for restaurant:', randomRestaurant.name);
+                getRestaurantLocationAndCalculateDistance(randomRestaurant);
+            } else {
+                console.log('User position not available, cannot calculate distance');
+                document.getElementById('distance-info').textContent = '无法计算距离：用户位置未知。请手动输入位置。';
+                addToHistory(randomRestaurant, null, null);
+            }
+        }
+
+        function displayRestaurantInfo(restaurant) {
+            const resultDiv = document.getElementById('result');
+            const daysSinceFavorited = calculateDaysSinceFavorited(restaurant.time);
+            resultDiv.innerHTML = `
+                <h2>${restaurant.name}</h2>
+                <p>地址：${restaurant.address}</p>
+                <p>城市：${restaurant.city}</p>
+                <p>电话：${restaurant.tel}</p>
+                <p>已收藏 ${daysSinceFavorited} 天</p>
+                <p><a href="${restaurant.url}" target="_blank">在大众点评查看更多信息</a></p>
+                <p id="distance-info">计算距离中...</p>
+            `;
+        }
+
+        function getRestaurantLocationAndCalculateDistance(restaurant) {
+            const address = `${restaurant.city}${restaurant.address}`;
+            console.log('Getting location for restaurant address:', address);
+            const geocodeUrl = `https://restapi.amap.com/v3/geocode/geo?address=${encodeURIComponent(address)}&output=json&key=${API_KEY}`;
+            
+            console.log('Sending geocode request for restaurant:', geocodeUrl);
+            fetch(geocodeUrl)
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Geocode response for restaurant:', data);
+                    if (data.status === '1' && data.geocodes.length > 0) {
+                        const location = data.geocodes[0].location;
+                        console.log('Restaurant location obtained:', location);
+                        calculateDistance(userPosition, location.split(','), restaurant);
+                    } else {
+                        console.log('Unable to geocode restaurant address');
+                        document.getElementById('distance-info').textContent = '无法计算距离：地址无法解析';
+                        addToHistory(restaurant, null, null);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error in geocode request for restaurant:', error);
+                    document.getElementById('distance-info').textContent = '地理编码请求失败';
+                    addToHistory(restaurant, null, null);
+                });
+        }
+
+
+        function calculateDistance(origin, destination, restaurant) {
+            console.log('Calculating distance from', origin, 'to', destination);
+            const drivingUrl = `https://restapi.amap.com/v3/direction/driving?origin=${origin.lng},${origin.lat}&destination=${destination[0]},${destination[1]}&extensions=all&strategy=10&key=${API_KEY}`;
+            
+            console.log('Sending driving route request:', drivingUrl);
+            fetch(drivingUrl)
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Driving route response:', data);
+                    if (data.status === '1' && data.route && data.route.paths && data.route.paths.length > 0) {
+                        const route = data.route.paths[0];
+                        const taxiCost = data.route.taxi_cost;
+                        console.log('Route found, distance:', route.distance, 'duration:', route.duration, 'taxi cost:', taxiCost);
+                        
+                        const distance = parseFloat(route.distance);
+                        const duration = parseFloat(route.duration);
+                        const cost = parseFloat(taxiCost);
+
+                        if (!isNaN(distance) && !isNaN(duration) && !isNaN(cost)) {
+                            updateDistanceInfo(distance, duration, cost);
+                            addToHistory(restaurant, distance, duration);
+                        } else {
+                            console.error('Invalid data received:', { distance, duration, taxiCost });
+                            document.getElementById('distance-info').textContent = '收到的数据无效，无法计算路线信息';
+                            addToHistory(restaurant, null, null);
+                        }
+                    } else {
+                        console.log('Unable to calculate route');
+                        document.getElementById('distance-info').textContent = '无法计算路线';
+                        addToHistory(restaurant, null, null);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error in driving route request:', error);
+                    document.getElementById('distance-info').textContent = '路线计算请求失败';
+                    addToHistory(restaurant, null, null);
+                });
+        }
+
+        function updateDistanceInfo(distance, duration, taxiCost) {
+            console.log('Updating distance info:', distance, 'meters,', duration, 'seconds, taxi cost:', taxiCost);
+            const distanceInfo = document.getElementById('distance-info');
+            distanceInfo.innerHTML = `
+                <p>距离：${(distance / 1000).toFixed(2)} 公里</p>
+                <p>预计驾车时间：${Math.round(duration / 60)} 分钟</p>
+                <p>预估出租车费用：${taxiCost} 元</p>
+            `;
+        }
+
+        function displayRestaurantInfo(restaurant) {
+            const resultDiv = document.getElementById('result');
+            const daysSinceFavorited = calculateDaysSinceFavorited(restaurant.time);
+            resultDiv.innerHTML = `
+                <h2>${restaurant.name}</h2>
+                <p>地址：${restaurant.address}</p>
+                <p>已收藏 ${daysSinceFavorited} 天</p>
+                <p><a href="${restaurant.url}" target="_blank">在大众点评查看更多信息</a></p>
+                <div id="distance-info">计算距离中...</div>
+                <p>城市：${restaurant.city}</p>
+                <p>电话：${restaurant.tel}</p>
+            `;
         }
 
         function updateCityList() {
-            cities = new Set(restaurants.map(r => r.city));
+            const cities = [...new Set(restaurants.map(r => r.city))];
             const citySelect = document.getElementById('citySelect');
             citySelect.innerHTML = '<option value="all">所有城市</option>';
             cities.forEach(city => {
@@ -225,35 +386,6 @@
             document.getElementById('restaurantCount').textContent = `当前选择中有 ${count} 家餐厅`;
         }
 
-        function selectRandomRestaurant() {
-            const selectedCity = document.getElementById('citySelect').value;
-            const filteredRestaurants = selectedCity === 'all'
-                ? restaurants
-                : restaurants.filter(r => r.city === selectedCity);
-
-            if (filteredRestaurants.length === 0) {
-                document.getElementById('result').innerHTML = '没有找到符合条件的餐厅';
-                return;
-            }
-
-            const randomRestaurant = filteredRestaurants[Math.floor(Math.random() * filteredRestaurants.length)];
-            displayRestaurantInfo(randomRestaurant);
-            addToHistory(randomRestaurant);
-        }
-
-        function displayRestaurantInfo(restaurant) {
-            const resultDiv = document.getElementById('result');
-            const daysSinceFavorited = calculateDaysSinceFavorited(restaurant.time);
-            resultDiv.innerHTML = `
-                <h2>${restaurant.name}</h2>
-                <p>地址：${restaurant.address}</p>
-                <p>城市：${restaurant.city}</p>
-                <p>电话：${restaurant.tel}</p>
-                <p>已收藏 ${daysSinceFavorited} 天</p>
-                <p><a href="${restaurant.url}" target="_blank">在大众点评查看更多信息</a></p>
-            `;
-        }
-
         function calculateDaysSinceFavorited(favoriteDate) {
             const today = new Date();
             const favoriteDateObj = new Date(favoriteDate);
@@ -262,23 +394,60 @@
             return diffDays;
         }
 
-        function addToHistory(restaurant) {
+        function truncateString(str, num) {
+            if (str.length <= num) {
+                return str;
+            }
+            return str.slice(0, num) + '...';
+        }
+
+        function addToHistory(restaurant, distance, duration) {
             const historyTable = document.getElementById('historyTable').getElementsByTagName('tbody')[0];
             const row = historyTable.insertRow(0);
             const daysSinceFavorited = calculateDaysSinceFavorited(restaurant.time);
+            
+            const truncatedAddress = truncateString(restaurant.address, 10);
+
             row.innerHTML = `
                 <td>${restaurant.name}</td>
-                <td>${restaurant.address}</td>
-                <td>${restaurant.city}</td>
-                <td>${restaurant.tel}</td>
+                <td class="truncate" title="${restaurant.address}">${truncatedAddress}</td>
+                <td>${distance ? Math.round(distance / 1000): 'N/A'} km</td>
+                <td>${duration ? Math.round(duration / 60) : 'N/A'} 分钟</td>
                 <td>${daysSinceFavorited} 天</td>
                 <td><a href="${restaurant.url}" target="_blank">查看</a></td>
             `;
         }
 
+
         function clearHistory() {
             const historyTable = document.getElementById('historyTable').getElementsByTagName('tbody')[0];
             historyTable.innerHTML = '';
+        }
+
+        function convertToMobileUrl(url) {
+            if (!url) return '#';
+            return url.replace('https://www.dianping.com/shop/', 'https://m.dianping.com/shopshare/');
+        }
+
+        document.getElementById('citySelect').addEventListener('change', updateRestaurantCount);
+        document.getElementById('randomSelect').addEventListener('click', selectRandomRestaurant);
+        document.getElementById('clearHistory').addEventListener('click', clearHistory);
+        document.getElementById('uploadLink').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('csvFile').click();
+        });
+        document.getElementById('csvFile').addEventListener('change', handleFileSelect);
+        document.getElementById('searchLocation').addEventListener('click', searchLocation);
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    processCSVData(e.target.result);
+                };
+                reader.readAsText(file);
+            }
         }
     </script>
 </body>
