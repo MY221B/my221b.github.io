@@ -166,6 +166,8 @@
             requestUserLocation();
         });
 
+        ///// 初始化和数据加载、处理相关的函数 ///// 
+        // 加载默认的CSV文件，包含餐厅数据
         function loadDefaultCSV() {
             fetch('https://raw.githubusercontent.com/MY221B/my221b.github.io/main/restaurants_with_distances.csv')
                 .then(response => response.text())
@@ -174,7 +176,8 @@
                 })
                 .catch(error => console.error('Error loading default CSV file:', error));
         }
-
+        
+        // 处理CSV数据，将其转换为可用的餐厅对象数组，并提取保存的位置
         function processCSVData(csvData) {
             Papa.parse(csvData, {
                 header: true,
@@ -188,14 +191,36 @@
                             address: row['地址'] || '未提供',
                             city: row['city'] ? row['city'].replace(/[\[\]]/g, '') : '未提供',
                             tel: row['tel'] || '未提供',
-                            time: row['time'] || '未提供'
+                            time: row['time'] || '未提供',
+                            ...row  // 保留所有原始数据，包括距离和时间列
                         }));
+                    extractSavedLocations(restaurants);  // 提取保存的位置
                     updateCityList();
                     updateRestaurantCount();
                 }
             });
         }
 
+        let savedLocations = [];
+
+        // 从餐厅数据中提取保存的位置信息
+        function extractSavedLocations(restaurants) {
+            const locationSet = new Set();
+            restaurants.forEach(restaurant => {
+                Object.keys(restaurant).forEach(key => {
+                    if (key.endsWith('距离')) {
+                        const location = key.replace('距离', '');
+                        locationSet.add(location);
+                    }
+                });
+            });
+            savedLocations = Array.from(locationSet);
+            console.log('Saved locations:', savedLocations);
+        }
+
+
+        ///// 用户交互、UI更新相关的函数 ///// 
+        // 请求用户的地理位置
         function requestUserLocation() {
             if ("geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(function(position) {
@@ -204,7 +229,18 @@
                         lat: position.coords.latitude
                     };
                     console.log('User position:', userPosition);
-                    document.getElementById('addressInput').placeholder = "已成功获取当前地址";
+                    
+                    reverseGeocode(userPosition.lng, userPosition.lat)
+                        .then(city => {
+                            console.log('User city:', city);
+                            updateCitySelect(city);
+                            calculateNearestLocation(userPosition);
+                            document.getElementById('addressInput').placeholder = "已成功获取当前地址";
+                        })
+                        .catch(error => {
+                            console.error('Error in reverse geocoding:', error);
+                            alert('无法获取城市信息，请手动选择城市。');
+                        });
                 }, function(error) {
                     console.error('Error getting user location:', error);
                     alert('无法自动获取您的位置。您可以手动输入位置。');
@@ -215,6 +251,7 @@
             }
         }
 
+        // 搜索用户输入的位置
         function searchLocation() {
             const address = document.getElementById('addressInput').value;
             if (!address) {
@@ -254,7 +291,88 @@
                 });
         }
 
+        // 处理用户上传的CSV文件
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    processCSVData(e.target.result);
+                };
+                reader.readAsText(file);
+            }
+        }
 
+        // 更新城市列表下拉菜单
+        function updateCityList() {
+            const cities = [...new Set(restaurants.map(r => r.city))];
+            const citySelect = document.getElementById('citySelect');
+            citySelect.innerHTML = '<option value="all">所有城市</option>';
+            cities.forEach(city => {
+                const option = document.createElement('option');
+                option.value = city; // 保持原有格式
+                option.textContent = city; // 保持原有格式
+                citySelect.appendChild(option);
+            });
+        }
+
+        // 更新城市选择器的选中项
+        function updateCitySelect(city) {
+            const citySelect = document.getElementById('citySelect');
+            const normalizedCity = city.endsWith('市') ? city : city + '市';
+            
+            const cityOption = Array.from(citySelect.options).find(option => {
+                const optionCity = option.value.replace(/^\[|\]$/g, ''); // 移除开头的 [ 和结尾的 ]
+                return optionCity === normalizedCity || optionCity + '市' === normalizedCity || optionCity === city;
+            });
+            
+            if (cityOption) {
+                citySelect.value = cityOption.value;
+                console.log(`City "${city}" matched with option "${cityOption.text}"`);
+            } else {
+                console.log(`City "${city}" not found in options, keeping current selection.`);
+            }
+            
+            // 触发 change 事件以更新餐厅计数
+            citySelect.dispatchEvent(new Event('change'));
+        }
+
+        // 更新显示当前选择中的餐厅数量
+        function updateRestaurantCount() {
+            const selectedCity = document.getElementById('citySelect').value;
+            const maxTime = document.getElementById('timeFilter') ? parseInt(document.getElementById('timeFilter').value) : Infinity;
+
+            const count = restaurants.filter(r => {
+                const cityMatch = selectedCity === 'all' || r.city === selectedCity;
+                const timeMatch = minDrivingTime > 10 || parseInt(r[`${nearestLocation}时间`]) <= maxTime;
+                return cityMatch && timeMatch;
+            }).length;
+
+            document.getElementById('restaurantCount').textContent = `当前选择中有 ${count} 家餐厅`;
+        }
+
+        // 更新时间筛选器的UI
+        // 在时间筛选器的 input 事件监听器中调用 updateRestaurantCount
+        function updateTimeFilterUI() {
+            const filterContainer = document.getElementById('timeFilterContainer');
+            if (minDrivingTime <= 10) {
+                filterContainer.style.display = 'block';
+                filterContainer.innerHTML = `
+                    <label for="timeFilter">选择最大行驶时间（分钟）：</label>
+                    <input type="range" id="timeFilter" min="0" max="120" step="5" value="30">
+                    <span id="timeFilterValue">30</span>
+                `;
+                document.getElementById('timeFilter').addEventListener('input', function() {
+                    document.getElementById('timeFilterValue').textContent = this.value;
+                    updateRestaurantCount();  // 添加这行
+                });
+            } else {
+                filterContainer.style.display = 'none';
+            }
+            updateRestaurantCount();  // 确保在UI更新后立即更新计数
+        }
+
+        // 随机选择一家符合条件的餐厅
         function selectRandomRestaurant() {
             const selectedCity = document.getElementById('citySelect').value;
             const maxTime = document.getElementById('timeFilter') ? parseInt(document.getElementById('timeFilter').value) : Infinity;
@@ -283,6 +401,7 @@
             }
         }
 
+        // 显示选中餐厅的详细信息
         function displayRestaurantInfo(restaurant) {
             const resultDiv = document.getElementById('result');
             const daysSinceFavorited = calculateDaysSinceFavorited(restaurant.time);
@@ -296,7 +415,73 @@
                 <p id="distance-info">计算距离中...</p>
             `;
         }
+        
 
+        // 更新距离信息显示
+        function updateDistanceInfo(distance, duration, taxiCost) {
+            console.log('Updating distance info:', distance, 'meters,', duration, 'seconds, taxi cost:', taxiCost);
+            const distanceInfo = document.getElementById('distance-info');
+            distanceInfo.innerHTML = `
+                <p>距离：${(distance / 1000).toFixed(2)} 公里</p>
+                <p>预计驾车时间：${Math.round(duration / 60)} 分钟</p>
+                <p>预估出租车费用：${taxiCost} 元</p>
+            `;
+        }
+
+        // 将选中的餐厅添加到历史记录中
+        function addToHistory(restaurant, distance, duration) {
+            const historyTable = document.getElementById('historyTable').getElementsByTagName('tbody')[0];
+            const row = historyTable.insertRow(0);
+            const daysSinceFavorited = calculateDaysSinceFavorited(restaurant.time);
+            
+            const truncatedAddress = truncateString(restaurant.address, 10);
+
+            row.innerHTML = `
+                <td>${restaurant.name}</td>
+                <td class="truncate" title="${restaurant.address}">${truncatedAddress}</td>
+                <td>${distance ? Math.round(distance / 1000): 'N/A'} km</td>
+                <td>${duration ? Math.round(duration / 60) : 'N/A'} 分钟</td>
+                <td>${daysSinceFavorited} 天</td>
+                <td><a href="${restaurant.url}" target="_blank">查看</a></td>
+            `;
+        }
+
+        // 清除历史记录
+        function clearHistory() {
+            const historyTable = document.getElementById('historyTable').getElementsByTagName('tbody')[0];
+            historyTable.innerHTML = '';
+        }
+
+         ///// 位置和地理编码相关的函数 ///// 
+        // 使用高德地图API进行逆地理编码，将经纬度转换为城市名称
+        function reverseGeocode(lng, lat) {
+            const url = `https://restapi.amap.com/v3/geocode/regeo?key=${API_KEY}&location=${lng},${lat}&extensions=base`;
+            
+            return fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === "1" && data.regeocode) {
+                        const addressComponent = data.regeocode.addressComponent;
+                        let city = addressComponent.city;
+                        
+                        // 如果city为空，使用province
+                        if (!city || city.length === 0) {
+                            city = addressComponent.province;
+                        }
+                        
+                        // 如果city是数组，取第一个元素
+                        if (Array.isArray(city)) {
+                            city = city[0];
+                        }
+                        
+                        return city;
+                    } else {
+                        throw new Error('Unable to reverse geocode');
+                    }
+                });
+        }
+
+        // 获取餐厅位置并计算与用户的距离，获得餐厅的经纬度，调用 calculateDistance 计算距离
         function getRestaurantLocationAndCalculateDistance(restaurant) {
             const address = `${restaurant.city}${restaurant.address}`;
             console.log('Getting location for restaurant address:', address);
@@ -324,7 +509,7 @@
                 });
         }
 
-
+        // 计算用户位置到餐厅的距离，调用其他函数来更新UI
         function calculateDistance(origin, destination, restaurant) {
             console.log('Calculating distance from', origin, 'to', destination);
             const drivingUrl = `https://restapi.amap.com/v3/direction/driving?origin=${origin.lng},${origin.lat}&destination=${destination[0]},${destination[1]}&extensions=all&strategy=10&key=${API_KEY}`;
@@ -364,194 +549,10 @@
                 });
         }
 
-        function updateDistanceInfo(distance, duration, taxiCost) {
-            console.log('Updating distance info:', distance, 'meters,', duration, 'seconds, taxi cost:', taxiCost);
-            const distanceInfo = document.getElementById('distance-info');
-            distanceInfo.innerHTML = `
-                <p>距离：${(distance / 1000).toFixed(2)} 公里</p>
-                <p>预计驾车时间：${Math.round(duration / 60)} 分钟</p>
-                <p>预估出租车费用：${taxiCost} 元</p>
-            `;
-        }
-
-        function displayRestaurantInfo(restaurant) {
-            const resultDiv = document.getElementById('result');
-            const daysSinceFavorited = calculateDaysSinceFavorited(restaurant.time);
-            resultDiv.innerHTML = `
-                <h2>${restaurant.name}</h2>
-                <p>已收藏 ${daysSinceFavorited} 天</p>
-                <div id="distance-info">计算距离中...</div>
-                <p><a href="${restaurant.url}" target="_blank">在大众点评查看更多信息</a></p>
-                <p>地址：${restaurant.address}</p>
-                <p>城市：${restaurant.city}</p>
-                <p>电话：${restaurant.tel}</p>
-            `;
-        }
-
-        function updateCityList() {
-            const cities = [...new Set(restaurants.map(r => r.city))];
-            const citySelect = document.getElementById('citySelect');
-            citySelect.innerHTML = '<option value="all">所有城市</option>';
-            cities.forEach(city => {
-                const option = document.createElement('option');
-                option.value = city;
-                option.textContent = city;
-                citySelect.appendChild(option);
-            });
-        }
-
-        function updateCitySelect(city) {
-            const citySelect = document.getElementById('citySelect');
-            const normalizedCity = city.endsWith('市') ? city : city + '市';
-            
-            const cityOption = Array.from(citySelect.options).find(option => {
-                const optionCity = option.value.replace(/^\[|\]$/g, ''); // 移除开头的 [ 和结尾的 ]
-                return optionCity === normalizedCity || optionCity + '市' === normalizedCity;
-            });
-            
-            if (cityOption) {
-                citySelect.value = cityOption.value;
-                console.log(`City "${city}" matched with option "${cityOption.text}"`);
-            } else {
-                console.log(`City "${city}" not found in options, keeping current selection.`);
-            }
-            
-            // 触发 change 事件以更新餐厅计数
-            citySelect.dispatchEvent(new Event('change'));
-        }
-
-        function updateCityList() {
-            const cities = [...new Set(restaurants.map(r => r.city))];
-            const citySelect = document.getElementById('citySelect');
-            citySelect.innerHTML = '<option value="all">所有城市</option>';
-            cities.forEach(city => {
-                const option = document.createElement('option');
-                option.value = city; // 保持原有格式
-                option.textContent = city; // 保持原有格式
-                citySelect.appendChild(option);
-            });
-        }
-
-        function updateRestaurantCount() {
-            const selectedCity = document.getElementById('citySelect').value;
-            const maxTime = document.getElementById('timeFilter') ? parseInt(document.getElementById('timeFilter').value) : Infinity;
-
-            const count = restaurants.filter(r => {
-                const cityMatch = selectedCity === 'all' || r.city === selectedCity;
-                const timeMatch = minDrivingTime > 10 || parseInt(r[`${nearestLocation}时间`]) <= maxTime;
-                return cityMatch && timeMatch;
-            }).length;
-
-            document.getElementById('restaurantCount').textContent = `当前选择中有 ${count} 家餐厅`;
-        }
-
-        function calculateDaysSinceFavorited(favoriteDate) {
-            const today = new Date();
-            const favoriteDateObj = new Date(favoriteDate);
-            const diffTime = Math.abs(today - favoriteDateObj);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            return diffDays;
-        }
-
-        function truncateString(str, num) {
-            if (str.length <= num) {
-                return str;
-            }
-            return str.slice(0, num) + '...';
-        }
-
-        function addToHistory(restaurant, distance, duration) {
-            const historyTable = document.getElementById('historyTable').getElementsByTagName('tbody')[0];
-            const row = historyTable.insertRow(0);
-            const daysSinceFavorited = calculateDaysSinceFavorited(restaurant.time);
-            
-            const truncatedAddress = truncateString(restaurant.address, 10);
-
-            row.innerHTML = `
-                <td>${restaurant.name}</td>
-                <td class="truncate" title="${restaurant.address}">${truncatedAddress}</td>
-                <td>${distance ? Math.round(distance / 1000): 'N/A'} km</td>
-                <td>${duration ? Math.round(duration / 60) : 'N/A'} 分钟</td>
-                <td>${daysSinceFavorited} 天</td>
-                <td><a href="${restaurant.url}" target="_blank">查看</a></td>
-            `;
-        }
-
-
-        function clearHistory() {
-            const historyTable = document.getElementById('historyTable').getElementsByTagName('tbody')[0];
-            historyTable.innerHTML = '';
-        }
-
-        function convertToMobileUrl(url) {
-            if (!url) return '#';
-            return url.replace('https://www.dianping.com/shop/', 'https://m.dianping.com/shopshare/');
-        }
-
-        document.getElementById('citySelect').addEventListener('change', updateRestaurantCount);
-        document.getElementById('randomSelect').addEventListener('click', selectRandomRestaurant);
-        document.getElementById('clearHistory').addEventListener('click', clearHistory);
-        document.getElementById('uploadLink').addEventListener('click', function(e) {
-            e.preventDefault();
-            document.getElementById('csvFile').click();
-        });
-        document.getElementById('csvFile').addEventListener('change', handleFileSelect);
-        document.getElementById('searchLocation').addEventListener('click', searchLocation);
-    
-
-        function handleFileSelect(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    processCSVData(e.target.result);
-                };
-                reader.readAsText(file);
-            }
-        }
-
-        let savedLocations = [];
-
-        function extractSavedLocations(restaurants) {
-            const locationSet = new Set();
-            restaurants.forEach(restaurant => {
-                Object.keys(restaurant).forEach(key => {
-                    if (key.endsWith('距离')) {
-                        const location = key.replace('距离', '');
-                        locationSet.add(location);
-                    }
-                });
-            });
-            savedLocations = Array.from(locationSet);
-            console.log('Saved locations:', savedLocations);
-        }
-
-        function processCSVData(csvData) {
-            Papa.parse(csvData, {
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    restaurants = results.data
-                        .filter(row => row['名称'] && row['名称'].trim() !== '')
-                        .map(row => ({
-                            name: row['名称'] || '未提供',
-                            url: convertToMobileUrl(row['J_shopt href']) || '#',
-                            address: row['地址'] || '未提供',
-                            city: row['city'] ? row['city'].replace(/[\[\]]/g, '') : '未提供',
-                            tel: row['tel'] || '未提供',
-                            time: row['time'] || '未提供',
-                            ...row  // 保留所有原始数据，包括距离和时间列
-                        }));
-                    extractSavedLocations(restaurants);  // 提取保存的位置
-                    updateCityList();
-                    updateRestaurantCount();
-                }
-            });
-        }
-
         let nearestLocation = null;
         let minDrivingTime = Infinity;
 
+        // 计算用户位置到所有保存位置的距离，找出最近的位置
         function calculateNearestLocation(userPosition) {
             console.log('Calculating nearest location for user position:', userPosition);
             nearestLocation = null;
@@ -596,25 +597,40 @@
                 });
         }
 
-        // 在时间筛选器的 input 事件监听器中调用 updateRestaurantCount
-        function updateTimeFilterUI() {
-            const filterContainer = document.getElementById('timeFilterContainer');
-            if (minDrivingTime <= 10) {
-                filterContainer.style.display = 'block';
-                filterContainer.innerHTML = `
-                    <label for="timeFilter">选择最大行驶时间（分钟）：</label>
-                    <input type="range" id="timeFilter" min="0" max="120" step="5" value="30">
-                    <span id="timeFilterValue">30</span>
-                `;
-                document.getElementById('timeFilter').addEventListener('input', function() {
-                    document.getElementById('timeFilterValue').textContent = this.value;
-                    updateRestaurantCount();  // 添加这行
-                });
-            } else {
-                filterContainer.style.display = 'none';
-            }
-            updateRestaurantCount();  // 确保在UI更新后立即更新计数
+        ///// 辅助功能函数 ///// 
+        // 计算收藏餐厅至今的天数
+        function calculateDaysSinceFavorited(favoriteDate) {
+            const today = new Date();
+            const favoriteDateObj = new Date(favoriteDate);
+            const diffTime = Math.abs(today - favoriteDateObj);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return diffDays;
         }
+
+        // 截断字符串，使其不超过指定长度
+        function truncateString(str, num) {
+            if (str.length <= num) {
+                return str;
+            }
+            return str.slice(0, num) + '...';
+        }
+
+        // 将URL转换为移动端友好的格式
+        function convertToMobileUrl(url) {
+            if (!url) return '#';
+            return url.replace('https://www.dianping.com/shop/', 'https://m.dianping.com/shopshare/');
+        }
+
+        document.getElementById('citySelect').addEventListener('change', updateRestaurantCount);
+        document.getElementById('randomSelect').addEventListener('click', selectRandomRestaurant);
+        document.getElementById('clearHistory').addEventListener('click', clearHistory);
+        document.getElementById('uploadLink').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('csvFile').click();
+        });
+        document.getElementById('csvFile').addEventListener('change', handleFileSelect);
+        document.getElementById('searchLocation').addEventListener('click', searchLocation);
+        
     </script>
 </body>
 </html>
