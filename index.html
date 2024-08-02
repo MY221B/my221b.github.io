@@ -443,7 +443,20 @@
                 <td>${duration ? Math.round(duration / 60) : 'N/A'} 分钟</td>
                 <td>${daysSinceFavorited} 天</td>
                 <td><a href="${restaurant.url}" target="_blank">查看</a></td>
+                <td><button class="delete-btn">删除</button></td>
             `;
+
+            // 为新添加的删除按钮绑定点击事件
+            row.querySelector('.delete-btn').addEventListener('click', function() {
+                deleteHistoryRow(row);
+            });
+        }
+
+        // 清除历史记录里的某一行记录
+        function deleteHistoryRow(row) {
+            if (confirm('确定要删除这条记录吗？')) {
+                row.remove();
+            }
         }
 
         // 清除历史记录
