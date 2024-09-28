@@ -61,7 +61,7 @@ function processCSVData(csvData) {
     });
 }
 
-// 从餐厅数据中提取保存的位置信息
+// 从餐厅数据中提取���存的位置信息
 function extractSavedLocations(restaurants) {
     const locationSet = new Set();
     restaurants.forEach(restaurant => {
@@ -165,7 +165,7 @@ function searchLocation() {
         });
 }
 
-// 使用高德地图API进行逆地理编��，将经纬度转换为城市名称
+// 使用高德地图API进行逆地理编，将经纬度转换为城市名称
 function reverseGeocode(lng, lat) {
     const url = `https://restapi.amap.com/v3/geocode/regeo?key=${API_KEY}&location=${lng},${lat}&extensions=base`;
     
@@ -248,7 +248,7 @@ function calculateNearestLocation(userPosition) {
                 nearestLocation = userPosition;
                 directDistance = true; // 设置为 true
                 calculateDirectDistance(nearestLocation); // 计算直线距离
-                console.log('应该计算直线距离');
+                console.log('�����计算直线距离');
             }
 
             updateTimeFilterUI();
@@ -662,6 +662,31 @@ function init() {
     updateCityList();
     
     updateDebugInfo();
+
+    // 在 init 函数中添加以下代码
+    const clearHistoryButton = document.getElementById('clear-history');
+    if (clearHistoryButton) {
+        clearHistoryButton.addEventListener('click', clearHistory);
+    }
+
+    const uploadDataLink = document.getElementById('upload-data');
+    if (uploadDataLink) {
+        uploadDataLink.addEventListener('click', showUploadDataMessage);
+    }
+}
+
+// 添加清除历史记录的函数
+function clearHistory() {
+    const historyCards = document.getElementById('history-cards');
+    if (historyCards) {
+        historyCards.innerHTML = '';
+    }
+}
+
+// 添加显示上传数据消息的函数
+function showUploadDataMessage(event) {
+    event.preventDefault();
+    alert('欢迎你呀~ 如果想使用你的收藏来玩，目前可以找我手动帮你hhh\n微信：myu221B');
 }
 
 function createHistoryCard(restaurant, distance, duration, taxiCost) {
