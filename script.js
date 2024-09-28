@@ -102,29 +102,24 @@ function requestUserLocation() {
                 .catch(error => {
                     console.error('Error in reverse geocoding:', error);
                     alert('无法获取城市信息，请手动选择城市。');
+                    handleLocationFailure();
                 });
         }, function(error) {
             console.error('Error getting user location:', error);
-            // 如果获取用户位置失败，设置默认位置为所选择城市的中心点
-            const defaultCity = document.getElementById('city').value;
-            if (defaultCity) {
-                const defaultCenter = getCityCenter(defaultCity); // 假设有一个函数getCityCenter获取城市中心点
-                if (defaultCenter) {
-                    userPosition = defaultCenter;
-                    console.log('Default position set:', userPosition);
-                    document.getElementById('location').placeholder = `定位至${defaultCity}中心，请手动搜索当前位置。`;
-                    calculateNearestLocation(userPosition);
-                } else {
-                    alert('请手动输入位置，获取餐厅到您的距离信息。');
-                }
-            } else {
-                alert('请手动输入位置，获取餐厅到您的距离信息。');
-            }
+            handleLocationFailure();
         });
     } else {
         console.log("Geolocation is not supported by this browser.");
-        alert('请手动输入位置，获取餐厅到您的距离信息。');
+        handleLocationFailure();
     }
+}
+
+function handleLocationFailure() {
+    userPosition = null;
+    userCity = null;
+    document.getElementById('location').placeholder = "无法获取位置，请手动选择城市";
+    updateDistanceFilterVisibility();
+    updateRestaurantCount();
 }
 
 // 搜索用户输入的位
@@ -505,7 +500,7 @@ function updateCitySelect(city) {
     }
 }
 
-// 过滤餐厅的通用函数
+// ��滤餐厅的通用函数
 function filterRestaurants(maxDistance) {
     const selectedCity = formatCityName(document.querySelector('.selected-city').textContent);
     const filterContainer = document.querySelector('.distance-select');
@@ -596,7 +591,7 @@ function updateDistanceFilterVisibility() {
     console.log('Selected city:', selectedCity);
     console.log('Direct distance:', directDistance);
     
-    if (userCity && compareCityNames(userCity, selectedCity)) {
+    if (userPosition && userCity && compareCityNames(userCity, selectedCity)) {
         console.log('Showing distance filter');
         filterContainer.style.display = 'block';
         slider.value = directDistance ? "10" : "30";
