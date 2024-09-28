@@ -165,7 +165,7 @@ function searchLocation() {
         });
 }
 
-// 使用高德地图API进行逆地理编码，将经纬度转换为城市名称
+// 使用高德地图API进行逆地理编��，将经纬度转换为城市名称
 function reverseGeocode(lng, lat) {
     const url = `https://restapi.amap.com/v3/geocode/regeo?key=${API_KEY}&location=${lng},${lat}&extensions=base`;
     
@@ -310,6 +310,7 @@ function getRestaurantLocationAndCalculateDistance(restaurant) {
                 .then(({ distance, duration, taxiCost }) => {
                     updateDistanceInfo(distance, duration, taxiCost);
                     addToHistory(restaurant, distance, duration, taxiCost);
+                    showRandomResult(restaurant, distance, duration, taxiCost);
                 })
                 .catch(error => {
                     console.error('Error calculating distance:', error);
@@ -500,7 +501,7 @@ function updateCitySelect(city) {
     }
 }
 
-// ��滤餐厅的通用函数
+// 滤餐厅的通用函数
 function filterRestaurants(maxDistance) {
     const selectedCity = formatCityName(document.querySelector('.selected-city').textContent);
     const filterContainer = document.querySelector('.distance-select');
@@ -732,4 +733,62 @@ function updateDebugInfo() {
 // 当 DOM 加载完成后初始化
 document.addEventListener('DOMContentLoaded', init);
 
-// 其他现有的函数（如 selectRandomRestaurant）保持不变
+// 在全局作用域添加一个计数器
+let randomSelectionCount = 0;
+
+function showRandomResult(restaurant, distance, duration, taxiCost) {
+    const totalRestaurants = filterRestaurants(parseInt(document.getElementById('distance').value)).length;
+    const daysSinceFavorited = calculateDaysSinceFavorited(restaurant.time);
+    
+    // 增加计数器
+    randomSelectionCount++;
+    
+    // 根据计数器选择显示的文案
+    const headerText = randomSelectionCount >= 4 
+        ? "试了这么多次，点按钮时你在期望哪一个？😈" 
+        : `${totalRestaurants} 个餐厅中，这一家今天和你很有缘分！！`;
+    
+    const overlay = document.createElement('div');
+    overlay.className = 'result-overlay';
+    overlay.innerHTML = `
+        <div class="result-content">
+            <h2>${headerText}</h2>
+            <div class="restaurant-card">
+                <h3>${restaurant.name}</h3>
+                <p>${restaurant.address}</p>
+                <p>距离: ${Math.round(distance / 1000)} 公里</p>
+                <p>预计驾车时间: ${Math.round(duration / 60)} 分钟</p>
+                <p>预计打车费: ${Math.round(taxiCost)} 元</p>
+                <p>收藏天数: ${daysSinceFavorited} 天</p>
+                <a href="${restaurant.url}" target="_blank" class="dianping-link">去大众点评查看</a>
+            </div>
+            <button id="try-again">再试一次</button>
+            <button id="view-history">查看历史记录</button>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    // 点击蒙层非卡片区域关闭
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            overlay.remove();
+            randomSelectionCount = 0;
+        }
+    });
+    
+    document.getElementById('try-again').addEventListener('click', () => {
+        overlay.remove();
+        const newRestaurant = selectRandomRestaurant();
+        if (newRestaurant) {
+            getRestaurantLocationAndCalculateDistance(newRestaurant);
+        }
+    });
+    
+    document.getElementById('view-history').addEventListener('click', () => {
+        overlay.remove();
+        document.getElementById('history').scrollIntoView({ behavior: 'smooth' });
+        // 重置计数器
+        randomSelectionCount = 0;
+    });
+}
