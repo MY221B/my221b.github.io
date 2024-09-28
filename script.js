@@ -4,13 +4,17 @@ let userPosition;
 let savedLocations = [];
 let nearestLocation;
 let minDrivingTime = Infinity;
+let directDistance = false; // 新增全局变量
+let directDistances = []; // 新增数组存储直线距离
+let userCity = null; // 新增全局变量存储用户所在城市
+let initCount = 0;
 
 const API_KEY = 'd111bbe935342b4ac8d1707ff6523552'; // 请替换为您的实际 API key
 
 // 加载默认的CSV文件
 // 修改 loadDefaultCSV 函数，在数据加载完成后调用 onCSVDataLoaded
 function loadDefaultCSV() {
-    fetch('https://raw.githubusercontent.com/MY221B/my221b.github.io/main/restaurants_with_distances.csv')
+    fetch('https://raw.githubusercontent.com/MY221B/my221b.github.io/main/restaurants.csv')
         .then(response => response.text())
         .then(csvData => {
             processCSVData(csvData);
@@ -21,7 +25,7 @@ function loadDefaultCSV() {
 
 function onCSVDataLoaded() {
     updateCityList();
-    updateRestaurantCount();
+    updateRestaurantCount(); // 更新餐厅数量
     // 其他需要在数据加载后执行的操作...
 }
 
@@ -33,16 +37,16 @@ function processCSVData(csvData) {
         complete: function(results) {
             try {
                 restaurants = results.data
-                .filter(row => row['名称'] && row['名称'].trim() !== '')
-                .map(row => ({
-                    name: row['名称'] || '未提供',
-                    url: convertToMobileUrl(row['J_shopt href']) || '#',
-                    address: row['地址'] || '未提供',
-                    city: formatCityName(row['city']), // 使用 formatCityName
-                    tel: row['tel'] || '未提供',
-                    time: row['time'] || '未提供',
-                    ...row  // 保留所有原始数据
-                }));
+                    .filter(row => row['名称'] && row['名称'].trim() !== '')
+                    .map(row => ({
+                        name: row['名称'] || '未提供',
+                        url: convertToMobileUrl(row['J_shopt href']) || '#',
+                        address: row['地址'] || '未提供',
+                        city: formatCityName(row['city']), // 使用 formatCityName
+                        tel: row['tel'] || '未提供',
+                        time: row['time'] || '未提供',
+                        ...row  // 保留所有原始数据
+                    }));
                 console.log('Restaurants data loaded:', restaurants.length);
                 console.log('Sample restaurant data:', restaurants[0]); // 输出第一个餐厅的数据作为样本
                 extractSavedLocations(restaurants);
@@ -88,8 +92,10 @@ function requestUserLocation() {
             reverseGeocode(userPosition.lng, userPosition.lat)
                 .then(city => {
                     console.log('User city:', city);
-                    updateCityList(city);  // 添加这行
-                    updateCitySelect(city);
+                    userCity = formatCityName(city);
+                    updateCityList(city);
+                    updateCitySelect(city); // 里传入的是完整的市名称
+                    updateDistanceFilterVisibility();
                     calculateNearestLocation(userPosition);
                     document.getElementById('location').placeholder = "已成功获取当前地址";
                 })
@@ -99,19 +105,35 @@ function requestUserLocation() {
                 });
         }, function(error) {
             console.error('Error getting user location:', error);
-            alert('无法自动获取您的位置。您可以手动输入位置。');
+            // 如果获取用户位置失败，设置默认位置为所选择城市的中心点
+            const defaultCity = document.getElementById('city').value;
+            if (defaultCity) {
+                const defaultCenter = getCityCenter(defaultCity); // 假设有一个函数getCityCenter获取城市中心点
+                if (defaultCenter) {
+                    userPosition = defaultCenter;
+                    console.log('Default position set:', userPosition);
+                    document.getElementById('location').placeholder = `定位至${defaultCity}中心，请手动搜索当前位置。`;
+                    calculateNearestLocation(userPosition);
+                } else {
+                    alert('请手动输入位置，获取餐厅到您的距离信息。');
+                }
+            } else {
+                alert('请手动输入位置，获取餐厅到您的距离信息。');
+            }
         });
     } else {
         console.log("Geolocation is not supported by this browser.");
-        alert('您的浏览器不支持地理位置功能。您可以手动输入位置。');
+        alert('请手动输入位置，获取餐厅到您的距离信息。');
     }
 }
 
-// 搜索用户输入的位置
+// 搜索用户输入的位
 function searchLocation() {
     const address = document.getElementById('location').value;
+
+    // 移除对空地址的检查，避免弹出提示框
     if (!address) {
-        alert('请输入位置');
+        // 这里可以选择不做任何事情，或者可以给用户一个提示，但不弹出框
         return;
     }
 
@@ -131,8 +153,10 @@ function searchLocation() {
                 document.getElementById('location').placeholder = "已成功获取当前地址";
                 
                 const city = geocode.city;
+                userCity = formatCityName(city);
                 console.log('User city:', city);
                 updateCitySelect(city);
+                updateDistanceFilterVisibility();
                 
                 alert('位置已更新');
                 calculateNearestLocation(userPosition);
@@ -223,42 +247,79 @@ function calculateNearestLocation(userPosition) {
                 }
             });
             console.log(`Nearest location: ${nearestLocation}, Driving time: ${minDrivingTime} minutes`);
+
+            // 新增逻辑检查
+            if (minDrivingTime > 30) {
+                nearestLocation = userPosition;
+                directDistance = true; // 设置为 true
+                calculateDirectDistance(nearestLocation); // 计算直线距离
+                console.log('应该计算直线距离');
+            }
+
             updateTimeFilterUI();
-            updateRestaurantCount();
+            updateRestaurantCount(); // 更新餐厅数量
         })
         .catch(error => {
             console.error('Error in calculateNearestLocation:', error);
         });
 }
 
+// 新增计算直线距离的函数
+function calculateDirectDistance(nearestLocation) {
+    const worker = new Worker('distanceWorker.js');
+    worker.onmessage = function(event) {
+        directDistances = event.data;
+        console.log('Direct distances calculated:', directDistances);
+        updateTimeFilterUI();
+    };
+    
+    const selectedCity = formatCityName(document.querySelector('.selected-city').textContent);
+    const cityRestaurants = restaurants.filter(r => compareCityNames(formatCityName(r.city), selectedCity));
+    
+    worker.postMessage({ userPosition, restaurants: cityRestaurants });
+    console.log('计算直线距离中');
+}
+
+// 获取餐厅的经纬度
+function getRestaurantLocation(restaurant) {
+    if (restaurant['经纬度']) {
+        return Promise.resolve(restaurant['经纬度']);
+    } else {
+        const address = `${restaurant.city}${restaurant.address}`;
+        const geocodeUrl = `https://restapi.amap.com/v3/geocode/geo?address=${encodeURIComponent(address)}&output=json&key=${API_KEY}`;
+        console.log('Sending geocode request for restaurant:', geocodeUrl);
+        return fetch(geocodeUrl)
+            .then(response => response.json())
+            .then(data => {
+                console.log('Geocode response for restaurant:', data);
+                if (data.status === '1' && data.geocodes.length > 0) {
+                    return data.geocodes[0].location;
+                } else {
+                    console.log('Unable to geocode restaurant address');
+                    throw new Error('无法解析餐厅地址');
+                }
+            })
+            .catch(error => {
+                console.error('Error in geocode request for restaurant:', error);
+                throw error;
+            });
+    }
+}
 // 获取餐厅位置并计算与用户的距离
 function getRestaurantLocationAndCalculateDistance(restaurant) {
-    const address = `${restaurant.city}${restaurant.address}`;
-    console.log('Getting location for restaurant address:', address);
-    const geocodeUrl = `https://restapi.amap.com/v3/geocode/geo?address=${encodeURIComponent(address)}&output=json&key=${API_KEY}`;
-    
-    console.log('Sending geocode request for restaurant:', geocodeUrl);
-    fetch(geocodeUrl)
-        .then(response => response.json())
-        .then(data => {
-            console.log('Geocode response for restaurant:', data);
-            if (data.status === '1' && data.geocodes.length > 0) {
-                const location = data.geocodes[0].location;
-                console.log('Restaurant location obtained:', location);
-                calculateDistance(userPosition, location.split(','), restaurant)
-                    .then(({ distance, duration, taxiCost }) => {
-                        updateDistanceInfo(distance, duration, taxiCost);
-                        addToHistory(restaurant, distance, duration, taxiCost);
-                    })
-                    .catch(error => {
-                        console.error('Error calculating distance:', error);
-                        addToHistory(restaurant, null, null, null);
-                    });
-            } else {
-                console.log('Unable to geocode restaurant address');
-                document.getElementById('distance-info').textContent = '无法计算距离：地址无法解析';
-                addToHistory(restaurant, null, null, null);
-            }
+    console.log('Getting location for restaurant:', restaurant);
+    getRestaurantLocation(restaurant)
+        .then(location => {
+            console.log('Restaurant location obtained:', location);
+            calculateDistance(userPosition, location.split(','), restaurant)
+                .then(({ distance, duration, taxiCost }) => {
+                    updateDistanceInfo(distance, duration, taxiCost);
+                    addToHistory(restaurant, distance, duration, taxiCost);
+                })
+                .catch(error => {
+                    console.error('Error calculating distance:', error);
+                    addToHistory(restaurant, null, null, null);
+                });
         })
         .catch(error => {
             console.error('Error in geocode request for restaurant:', error);
@@ -266,6 +327,8 @@ function getRestaurantLocationAndCalculateDistance(restaurant) {
             addToHistory(restaurant, null, null, null);
         });
 }
+
+
 
 // 计算用户位置到餐厅的距离
 function calculateDistance(origin, destination, restaurant) {
@@ -328,32 +391,29 @@ function updateTimeFilterUI() {
     
     if (filterContainer && slider && valueDisplay) {
         if (nearestLocation) {
-            const timeColumn = `${nearestLocation}时间`;
-            const times = restaurants.map(r => parseInt(r[timeColumn])).filter(t => !isNaN(t));
-            const maxTime = Math.max(...times);
-            console.log(`Max time to ${nearestLocation}:`, maxTime, 'minutes');
-
             filterContainer.style.display = 'block';
-            slider.max = Math.min(120, maxTime);  // 设置最大值为 maxTime 和 120 中的较小值
-            
-            // 设置默认值
-            let defaultValue;
-            if (slider.max < 30) {
-                defaultValue = Math.round(slider.max / 2);  // 如果最大值小于30，取一半
+            if (directDistance) {
+                if (directDistances.length > 0) { // 确保有计算结果
+                    const maxDistance = Math.max(...directDistances.map(d => d.distance));
+                    slider.max = Math.min(40, maxDistance)// 设置最大直线距离
+                    slider.value = 10; // 设置默认值
+                    valueDisplay.textContent = `${slider.value} km 直线距离内`; // 更新单位
+                    
+                } else {
+                    filterContainer.style.display = 'none'; // 如果没有计算结果，隐藏滑块
+                }
             } else {
-                defaultValue = 30;  // 否则默认为30分钟
+                // 现有逻辑
+                const timeColumn = `${nearestLocation}时间`;
+                const times = restaurants.map(r => parseInt(r[timeColumn])).filter(t => !isNaN(t));
+                const maxTime = Math.max(...times);
+                slider.max = Math.min(120, maxTime);
+                let defaultValue = maxTime < 30 ? Math.round(maxTime / 2) : 30;
+                slider.value = defaultValue;
+                valueDisplay.textContent = `${defaultValue} min 车程内`;
             }
-            
-            slider.value = defaultValue;
-            valueDisplay.textContent = `${defaultValue} min 车程内`;
-            console.log('Time filter UI updated:', defaultValue, 'min');
-            
-            // 更新滑块背景
-            const percentage = (defaultValue - slider.min) / (slider.max - slider.min) * 100;
-            slider.style.background = `linear-gradient(to right, #007AFF 0%, #007AFF ${percentage}%, #D1D1D6 ${percentage}%, #D1D1D6 100%)`;
-            
-            // 初始更新餐厅计数
-            updateRestaurantCount();
+            console.log('Time filter UI updated');
+            updateRestaurantCount(); // 更新餐厅数量
         } else {
             filterContainer.style.display = 'none';
             console.log('Time filter UI hidden: nearestLocation not set');
@@ -361,6 +421,40 @@ function updateTimeFilterUI() {
     } else {
         console.warn('Time filter UI elements not found');
     }
+}
+
+// 更新滑块显示
+function updateSlider() {
+    const slider = document.getElementById('distance');
+    const output = document.getElementById('distance-value');
+    if (slider && output) {
+        const value = slider.value;
+        output.textContent = directDistance ? `${value} km 直线距离内` : `${value} min 车程内`; // 更新单位
+        // 更新滑块的背景颜色
+        updateSliderBackground(slider);
+        console.log('Slider updated:', value);
+        
+        // 每次滑块更新时都更新餐厅计数
+        updateRestaurantCount();
+    } else {
+        console.warn('Slider elements not found');
+    }
+}
+
+// 新增函数：更新滑块背景
+function updateSliderBackground(slider) {
+    const min = parseInt(slider.min);
+    const max = parseInt(slider.max);
+    const value = parseInt(slider.value);
+    const percentage = ((value - min) / (max - min)) * 100;
+    const backgroundStyle = `linear-gradient(to right, #007AFF 0%, #007AFF ${percentage}%, #D1D1D6 ${percentage}%, #D1D1D6 100%)`;
+    slider.style.background = backgroundStyle;
+    
+    // 强制重绘
+    slider.offsetWidth;
+    
+    console.log('Slider background updated:', backgroundStyle);
+    updateDebugInfo();
 }
 
 // 更新城市列表
@@ -387,15 +481,50 @@ function updateCitySelect(city) {
     const selectedCitySpan = document.querySelector('.selected-city');
     if (citySelect && selectedCitySpan) {
         const formattedCity = formatCityName(city);
-        if (citySelect.querySelector(`option[value="${formattedCity}"]`)) {
-            citySelect.value = formattedCity;
-            selectedCitySpan.textContent = formattedCity;
-        } else {
+        let matchFound = false;
+
+        // 遍历所有选项,查找匹配的城市
+        for (let i = 0; i < citySelect.options.length; i++) {
+            const option = citySelect.options[i];
+            if (compareCityNames(formatCityName(option.value), formattedCity)) {
+                citySelect.value = option.value;
+                selectedCitySpan.textContent = option.value;
+                matchFound = true;
+                break;
+            }
+        }
+
+        // 如果没有找到匹配的城市,设置为"所有城市"
+        if (!matchFound) {
             citySelect.value = '所有城市';
             selectedCitySpan.textContent = '所有城市';
         }
-        updateRestaurantCount();
+        
+        updateDistanceFilterVisibility();
+        updateRestaurantCount(); // 更新餐厅数量
     }
+}
+
+// 过滤餐厅的通用函数
+function filterRestaurants(maxDistance) {
+    const selectedCity = formatCityName(document.querySelector('.selected-city').textContent);
+    const filterContainer = document.querySelector('.distance-select');
+    
+    return restaurants.filter(r => {
+        const cityMatch = selectedCity === '所有城市' || compareCityNames(formatCityName(r.city), selectedCity);
+        
+        if (filterContainer.style.display === 'none') {
+            return cityMatch;
+        }
+        
+        if (directDistance) {
+            const restaurantDistance = directDistances.find(d => d.name === r.name)?.distance;
+            return cityMatch && restaurantDistance && restaurantDistance <= maxDistance;
+        } else {
+            const timeColumn = `${nearestLocation}时间`;
+            return cityMatch && parseInt(r[timeColumn]) <= maxDistance;
+        }
+    });
 }
 
 // 更新餐厅数量显示
@@ -403,38 +532,15 @@ function updateRestaurantCount() {
     const countElement = document.querySelector('#restaurant-count .number');
     const cityElement = document.querySelector('.selected-city');
     const slider = document.getElementById('distance');
-    if (countElement && cityElement && slider && nearestLocation) {
-        const selectedCity = cityElement.textContent;
-        const maxTime = parseInt(slider.value);
-        const timeColumn = `${nearestLocation}时间`;
-        const count = restaurants.filter(r => {
-            const cityMatch = selectedCity === '所有城市' || formatCityName(r.city) === selectedCity;
-            const timeMatch = parseInt(r[timeColumn]) <= maxTime;
-            return cityMatch && timeMatch;
-        }).length;
-        countElement.textContent = count;
-        console.log('Restaurant count updated:', count, 'for city:', selectedCity, 'within', maxTime, 'minutes');
-    } else {
-        console.warn('Restaurant count, city element, slider, or nearestLocation not found');
-    }
-}
+    
+    if (countElement && cityElement && slider) {
+        const maxDistance = parseInt(slider.value); // 使用滑块的值作为最大距离
+        const filteredRestaurants = filterRestaurants(maxDistance); // 调用过滤函数
 
-// 更新滑块显示
-function updateSlider() {
-    const slider = document.getElementById('distance');
-    const output = document.getElementById('distance-value');
-    if (slider && output) {
-        const value = slider.value;
-        output.textContent = `${value} min 车程内`;
-        // 更新滑块的背景颜色
-        const percentage = (value - slider.min) / (slider.max - slider.min) * 100;
-        slider.style.background = `linear-gradient(to right, #007AFF 0%, #007AFF ${percentage}%, #D1D1D6 ${percentage}%, #D1D1D6 100%)`;
-        console.log('Slider updated:', value, 'min');
-        
-        // 每次滑块更新时都更新餐厅计数
-        updateRestaurantCount();
+        countElement.textContent = filteredRestaurants.length; // 更新餐厅数量
+        console.log('Restaurant count updated:', filteredRestaurants.length, 'for city:', cityElement.textContent, 'within', maxDistance, 'km');
     } else {
-        console.warn('Slider elements not found');
+        console.warn('Restaurant count, city element, or slider not found');
     }
 }
 
@@ -443,18 +549,14 @@ function selectRandomRestaurant() {
     const cityElement = document.querySelector('.selected-city');
     const slider = document.getElementById('distance');
     if (cityElement && slider && nearestLocation) {
-        const selectedCity = cityElement.textContent;
-        const maxTime = parseInt(slider.value);
-        const timeColumn = `${nearestLocation}时间`;
-        const filteredRestaurants = restaurants.filter(r => {
-            const cityMatch = selectedCity === '所有城市' || formatCityName(r.city) === selectedCity;
-            const timeMatch = parseInt(r[timeColumn]) <= maxTime;
-            return cityMatch && timeMatch;
-        });
+        const maxDistance = parseInt(slider.value);
+        const filteredRestaurants = filterRestaurants(maxDistance); // 调用过滤函数
+
         if (filteredRestaurants.length === 0) {
             console.log('No restaurants available with current filters');
             return null;
         }
+
         const randomIndex = Math.floor(Math.random() * filteredRestaurants.length);
         const selectedRestaurant = filteredRestaurants[randomIndex];
         console.log('Randomly selected restaurant:', selectedRestaurant);
@@ -475,16 +577,65 @@ function convertToMobileUrl(url) {
 function formatCityName(city) {
     if (!city) return '所有城市';
     city = Array.isArray(city) ? city[0] : city;
-    city = city.replace(/[\[\]]/g, '').trim(); // 移除方括号
-    return city.endsWith('市') ? city : city + '市';
+    return city.replace(/[\[\]]/g, '').trim(); // 只移除方括号和空白字符
+}
+
+// 新增函数：比较城市名称
+function compareCityNames(name1, name2) {
+    return name1.slice(0, 2) === name2.slice(0, 2);
+}
+
+// 新增函数：控制距离滑块的显示
+function updateDistanceFilterVisibility() {
+    console.log('Updating distance filter visibility');
+    const filterContainer = document.querySelector('.distance-select');
+    const selectedCity = formatCityName(document.querySelector('.selected-city').textContent);
+    const slider = document.getElementById('distance');
+    
+    console.log('User city:', userCity);
+    console.log('Selected city:', selectedCity);
+    console.log('Direct distance:', directDistance);
+    
+    if (userCity && compareCityNames(userCity, selectedCity)) {
+        console.log('Showing distance filter');
+        filterContainer.style.display = 'block';
+        slider.value = directDistance ? "10" : "30";
+        
+        // 使用 setTimeout 确保在 DOM 更新后更新背景
+        setTimeout(() => {
+            updateSliderBackground(slider);
+            updateTimeFilterUI(); // 更新滑块UI
+        }, 0);
+    } else {
+        console.log('Hiding distance filter');
+        filterContainer.style.display = 'none';
+    }
+    updateRestaurantCount(); // 更新餐厅数量
+    updateDebugInfo();
 }
 
 // 初始化函数
 function init() {
+    initCount++;
+    console.log('Initializing... Count:', initCount);
+    
     loadDefaultCSV();
     requestUserLocation();
     
-    // 添加随机选择按钮的事件监听器
+    // 使用 setTimeout 来确保在其他异步操作完成后初始化滑块
+    setTimeout(() => {
+        const slider = document.getElementById('distance');
+        if (slider) {
+            console.log('Setting initial slider value');
+            slider.value = directDistance ? "10" : "30";
+            updateSliderBackground(slider);
+            updateSlider();
+            slider.oninput = updateSlider;
+        }
+        updateDebugInfo();
+    }, 0);
+    
+    // 添加机选择按钮的事件监听器
     const randomSelectButton = document.getElementById('random-select');
     if (randomSelectButton) {
         randomSelectButton.addEventListener('click', () => {
@@ -504,20 +655,17 @@ function init() {
         updateLocationButton.addEventListener('click', searchLocation);
     }
 
-    // 初始化滑块
-    const slider = document.getElementById('distance');
-    if (slider) {
-        slider.oninput = updateSlider;
-    }
-
     // 添加城市选择事件监听器
     const citySelect = document.getElementById('city');
     citySelect.addEventListener('change', function() {
         updateCitySelect(this.value);
+        updateDistanceFilterVisibility();
     });
 
     // 初始化城市列表
     updateCityList();
+    
+    updateDebugInfo();
 }
 
 function createHistoryCard(restaurant, distance, duration, taxiCost) {
@@ -561,6 +709,29 @@ function addToHistory(restaurant, distance, duration, taxiCost) {
     });
     
     historyCards.insertBefore(card, historyCards.firstChild);
+}
+
+function updateDebugInfo() {
+    const slider = document.getElementById('distance');
+    const debugSliderValue = document.getElementById('debug-slider-value');
+    const debugDirectDistance = document.getElementById('debug-direct-distance');
+    const debugSliderBackground = document.getElementById('debug-slider-background');
+    const debugInitCount = document.getElementById('debug-init-count');
+
+    if (slider) {
+        if (debugSliderValue) debugSliderValue.textContent = slider.value;
+        if (debugSliderBackground) debugSliderBackground.textContent = slider.style.background;
+    }
+
+    if (debugDirectDistance) debugDirectDistance.textContent = directDistance;
+    if (debugInitCount) debugInitCount.textContent = initCount;
+
+    console.log('Debug info updated:', {
+        sliderValue: slider ? slider.value : 'N/A',
+        directDistance,
+        sliderBackground: slider ? slider.style.background : 'N/A',
+        initCount
+    });
 }
 
 // 当 DOM 加载完成后初始化

@@ -239,12 +239,12 @@ header p {
     -webkit-appearance: none;
     width: 100%;
     height: 4px;
-    background: linear-gradient(to right, #007AFF 0%, #007AFF 50%, #D1D1D6 50%, #D1D1D6 100%);
+    background: #D1D1D6; /* 默认背景色 */
     outline: none;
     opacity: 1;
-    transition: opacity .2s;
+    transition: opacity .2s, background .2s;
     border-radius: 2px;
-    margin: 12px 0; /* 添加上下边距，为滑块留出空间 */
+    margin: 12px 0;
 }
 
 .distance-select input[type="range"]::-webkit-slider-thumb {
@@ -256,7 +256,7 @@ header p {
     background: #FFFFFF;
     cursor: pointer;
     box-shadow: 0 0.5px 4px rgba(0, 0, 0, 0.12), 0 6px 13px rgba(0, 0, 0, 0.12);
-    margin-top: -12px; /* 将滑块向上移动，使其中心与进度条对 */
+    margin-top: -12px; /* 将滑块向上移动，使其中心与进度条对齐 */
 }
 
 .distance-select input[type="range"]::-moz-range-thumb {
