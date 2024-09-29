@@ -46,7 +46,7 @@
                     </div>
                 </div>
             
-                <div class="input-group distance-select">
+                <div class="input-group distance-select" style="display: none;">
                     <div class="distance-header">
                         <label for="distance">距离</label>
                         <span id="distance-value">30 min 车程内</span>
@@ -55,6 +55,10 @@
                 </div>
             
                 <p id="restaurant-count">从收藏中找到 <span><span class="number">235</span></span> 个餐厅！</p>
+            
+                <!-- 添加加载提示和错误信息元素 -->
+                <p id="loading-message" class="hidden">正在加载数据,请稍候...</p>
+                <p id="error-message" class="hidden">加载失败,请刷新页面或检查网络连接后重试。</p>
             </section>
 
             <button id="random-select">
@@ -72,13 +76,13 @@
     </div>
 
     <div id="result-overlay" class="fixed inset-0 backdrop-blur-sm bg-black bg-opacity-70 flex flex-col items-center justify-start py-8 hidden">
-      <h2 id="result-header" class="text-white text-2xl font-bold mb-4 px-4 text-center mt-20"></h2>
+      <h2 id="result-header" class="text-white text-2xl font-bold mb-4 px-4 text-center mt-12"></h2>
       
-      <div id="result-content" class="w-[349px] bg-white rounded-lg shadow-lg overflow-hidden mt-8"></div>
+      <div id="result-content" class="w-[349px] bg-white rounded-lg shadow-lg overflow-hidden mt-4"></div>
       
       <!-- 修改这里的结构和类名 -->
-      <div class="button-container flex justify-center items-center w-full max-w-md px-6 mt-auto mb-44">
-        <button id="view-history" class="history-button">查看历史记录</button>
+      <div class="button-container flex justify-center items-center w-full max-w-md px-6 mt-auto mb-32">
+        <button id="view-history" class="history-button">历史记录</button>
         <button id="try-again" class="try-again-button ml-[15px]">
           <img src="骰子.svg" alt="骰子" class="mr-2 w-6 h-6 inline">
           <span>再试一次</span>

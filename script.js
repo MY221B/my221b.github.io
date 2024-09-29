@@ -3,37 +3,58 @@
 // npx tailwindcss -i ./styles.css -o ./output.css --watch
 
 // 全局变量
-let restaurants = [];
+let restaurants = []; // 使用 let 而不是 const
 let userPosition;
 let savedLocations = [];
 let nearestLocation;
 let minDrivingTime = Infinity;
-let directDistance = false; // 新增全局变量
-let directDistances = []; // 新增数组存储直线距离
-let userCity = null; // 新增全局变量存储用户所在城市
+let directDistance = false;
+let directDistances = [];
+let userCity = null;
 let initCount = 0;
 
-const API_KEY = 'd111bbe935342b4ac8d1707ff6523552'; // 请替换为您的实际 API key
+const API_KEY = 'd111bbe935342b4ac8d1707ff6523552';
 
-// 加载默认的CSV文件
+// 在文件开头添加这些变量引用
+let loadingMessage, errorMessage, restaurantCount;
+
 // 修改 loadDefaultCSV 函数，在数据加载完成后调用 onCSVDataLoaded
 function loadDefaultCSV() {
+    if (!loadingMessage || !restaurantCount || !errorMessage) {
+        console.warn('DOM elements not found. Retrying in 100ms...');
+        setTimeout(loadDefaultCSV, 100);
+        return;
+    }
+
+    loadingMessage.classList.remove('hidden');
+    restaurantCount.classList.add('hidden');
+    errorMessage.classList.add('hidden');
+
     fetch('https://raw.githubusercontent.com/MY221B/my221b.github.io/main/restaurants.csv')
         .then(response => response.text())
         .then(csvData => {
             processCSVData(csvData);
-            onCSVDataLoaded();
         })
-        .catch(error => console.error('Error loading default CSV file:', error));
+        .catch(error => {
+            loadingMessage.classList.add('hidden');
+            errorMessage.classList.remove('hidden');
+            console.error('Error loading default CSV file:', error);
+        });
 }
 
 function onCSVDataLoaded() {
+    // 隐藏加载消息
+    loadingMessage.classList.add('hidden');
+    
+    // 显示餐厅数量
+    restaurantCount.classList.remove('hidden');
+    
     updateCityList();
-    updateRestaurantCount(); // 更新餐数量
+    updateRestaurantCount(); // 更新餐厅数量
     // 其他需在数据加载后执行的操作...
 }
 
-// 处理CSV数据
+// 修改 processCSVData 函数，在数据处理完成后调用 onCSVDataLoaded
 function processCSVData(csvData) {
     Papa.parse(csvData, {
         header: true,
@@ -54,13 +75,17 @@ function processCSVData(csvData) {
                 console.log('Restaurants data loaded:', restaurants.length);
                 console.log('Sample restaurant data:', restaurants[0]); // 输出第一个餐厅的数据作为样本
                 extractSavedLocations(restaurants);
-                updateRestaurantCount();
+                onCSVDataLoaded(); // 在这里调用 onCSVDataLoaded
             } catch (error) {
                 console.error('Error processing CSV data:', error);
+                errorMessage.classList.remove('hidden');
+                loadingMessage.classList.add('hidden');
             }
         },
         error: function(error) {
             console.error('Error parsing CSV:', error);
+            errorMessage.classList.remove('hidden');
+            loadingMessage.classList.add('hidden');
         }
     });
 }
@@ -132,7 +157,7 @@ function searchLocation() {
 
     // 移除对空地址的检查，避免弹出提示框
     if (!address) {
-        // 这里可选择不做任何事，或者可以给用户一个提示，但不弹出框
+        // 这里可选不做任何事，或者以给用户一个提示，但不弹出框
         return;
     }
 
@@ -589,7 +614,7 @@ function updateDistanceFilterVisibility() {
         filterContainer.style.display = 'block';
         slider.value = directDistance ? "10" : "30";
         
-        // 使用 setTimeout 确保在 DOM ���新后更新背景
+        // 使用 setTimeout 确保在 DOM 更新后更新背景
         setTimeout(() => {
             updateSliderBackground(slider);
             updateTimeFilterUI(); // 更新滑块UI
@@ -607,6 +632,11 @@ function init() {
     initCount++;
     console.log('Initializing... Count:', initCount);
     
+    // 初始化 DOM 元素引用
+    loadingMessage = document.getElementById('loading-message');
+    errorMessage = document.getElementById('error-message');
+    restaurantCount = document.getElementById('restaurant-count');
+
     loadDefaultCSV();
     requestUserLocation();
     
@@ -664,6 +694,12 @@ function init() {
     const uploadDataLink = document.getElementById('upload-data');
     if (uploadDataLink) {
         uploadDataLink.addEventListener('click', showUploadDataMessage);
+    }
+
+    // 初始化时隐藏距离滑块
+    const filterContainer = document.querySelector('.distance-select');
+    if (filterContainer) {
+        filterContainer.style.display = 'none';
     }
 }
 

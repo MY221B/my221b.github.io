@@ -314,16 +314,15 @@ header p {
     text-align: center;
     font-size: 14px;
     color: rgba(60, 60, 67, 0.6);
-    margin-top: 20px;
+    margin-top: 10px; /* 减少顶部边距 */
+    margin-bottom: 20px; /* 增加底部边距 */
     position: relative;
     z-index: 1;
-    
 }
 
 #restaurant-count .number {
     position: relative;
     z-index: 1;
-    
 }
 
 #restaurant-count span {
@@ -350,7 +349,7 @@ header p {
     border: none;
     position: relative;
     display: block;
-    margin: 135px auto 180px; /* 上边距135px，下边距px，左右自动居中 */
+    margin: 80px auto 120px; /* 减少上下边距 */
     cursor: pointer;
     overflow: hidden;
 }
@@ -639,6 +638,7 @@ input[type="range"]::-moz-range-thumb {
 
 #result-header {
   white-space: pre-line; /* 允许换行 */
+  margin-top: 3rem; /* 减少顶部边距 */
 }
 
 #result-content {
@@ -650,6 +650,7 @@ input[type="range"]::-moz-range-thumb {
   padding-bottom: 20px;
   /* 添加最小高度，确保卡片至少有一定的高度 */
   min-height: 200px;
+  margin-top: 1rem; /* 减少顶部边距 */
 }
 
 #result-template > div {
@@ -667,7 +668,7 @@ input[type="range"]::-moz-range-thumb {
   justify-content: center;
   align-items: center;
   margin-top: auto;
-  margin-bottom: 32px;
+  margin-bottom: 4rem; /* 减少底部边距 */
   width: 100%;
 }
 
