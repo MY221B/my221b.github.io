@@ -1,3 +1,7 @@
+// 运行 Tailwind CLI 命令：
+// 在终端中输入以下命令以监视文件更改并编译 CSS：
+// npx tailwindcss -i ./styles.css -o ./output.css --watch
+
 // 全局变量
 let restaurants = [];
 let userPosition;
@@ -25,8 +29,8 @@ function loadDefaultCSV() {
 
 function onCSVDataLoaded() {
     updateCityList();
-    updateRestaurantCount(); // 更新餐厅数量
-    // 其他需要在数据加载后执行的操作...
+    updateRestaurantCount(); // 更新餐数量
+    // 其他需在数据加载后执行的操作...
 }
 
 // 处理CSV数据
@@ -61,7 +65,7 @@ function processCSVData(csvData) {
     });
 }
 
-// 从餐厅数据中提取���存的位置信息
+// 从餐厅数据中提取存的位置信息
 function extractSavedLocations(restaurants) {
     const locationSet = new Set();
     restaurants.forEach(restaurant => {
@@ -128,7 +132,7 @@ function searchLocation() {
 
     // 移除对空地址的检查，避免弹出提示框
     if (!address) {
-        // 这里可以选择不做任何事情，或者可以给用户一个提示，但不弹出框
+        // 这里可选择不做任何事，或者可以给用户一个提示，但不弹出框
         return;
     }
 
@@ -215,7 +219,7 @@ function calculateNearestLocation(userPosition) {
                         .then(data => {
                             console.log('Driving route response for location:', location, data);
                             if (data.status === '1' && data.route && data.route.paths && data.route.paths.length > 0) {
-                                const drivingTime = parseInt(data.route.paths[0].duration) / 60;  // 转换为分钟
+                                const drivingTime = parseInt(data.route.paths[0].duration) / 60;  // 转为分钟
                                 console.log(`Driving time to ${location}: ${drivingTime} minutes`);
                                 return { location, drivingTime };
                             }
@@ -248,7 +252,7 @@ function calculateNearestLocation(userPosition) {
                 nearestLocation = userPosition;
                 directDistance = true; // 设置为 true
                 calculateDirectDistance(nearestLocation); // 计算直线距离
-                console.log('�����计算直线距离');
+                console.log('计算直线距离');
             }
 
             updateTimeFilterUI();
@@ -300,31 +304,36 @@ function getRestaurantLocation(restaurant) {
             });
     }
 }
-// 获取餐厅位置并计算与用户的距离
+
+// 修改 getRestaurantLocationAndCalculateDistance 函数
 function getRestaurantLocationAndCalculateDistance(restaurant) {
     console.log('Getting location for restaurant:', restaurant);
     getRestaurantLocation(restaurant)
         .then(location => {
             console.log('Restaurant location obtained:', location);
-            calculateDistance(userPosition, location.split(','), restaurant)
-                .then(({ distance, duration, taxiCost }) => {
-                    updateDistanceInfo(distance, duration, taxiCost);
-                    addToHistory(restaurant, distance, duration, taxiCost);
-                    showRandomResult(restaurant, distance, duration, taxiCost);
-                })
-                .catch(error => {
-                    console.error('Error calculating distance:', error);
-                    addToHistory(restaurant, null, null, null);
-                });
+            if (userPosition) {
+                calculateDistance(userPosition, location.split(','), restaurant)
+                    .then(result => {
+                        if (result) {
+                            const { distance, duration, taxiCost } = result;
+                            showRandomResult(restaurant, distance, duration, taxiCost);
+                        } else {
+                            showRandomResult(restaurant);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error calculating distance:', error);
+                        showRandomResult(restaurant);
+                    });
+            } else {
+                showRandomResult(restaurant);
+            }
         })
         .catch(error => {
             console.error('Error in geocode request for restaurant:', error);
-            document.getElementById('distance-info').textContent = '地理编码请求失败';
-            addToHistory(restaurant, null, null, null);
+            showRandomResult(restaurant);
         });
 }
-
-
 
 // 计算用户位置到餐厅的距离
 function calculateDistance(origin, destination, restaurant) {
@@ -349,34 +358,17 @@ function calculateDistance(origin, destination, restaurant) {
                     return { distance, duration, taxiCost };
                 } else {
                     console.error('Invalid data received:', { distance, duration, taxiCost });
-                    document.getElementById('distance-info').textContent = '收到的数据无效，无法计算路线信息';
                     return null;
                 }
             } else {
                 console.log('Unable to calculate route');
-                document.getElementById('distance-info').textContent = '无法计算路线';
                 return null;
             }
         })
         .catch(error => {
             console.error('Error in driving route request:', error);
-            document.getElementById('distance-info').textContent = '路线计算请求失败';
             return null;
         });
-}
-
-
-// 更新距离信息显示
-function updateDistanceInfo(distance, duration, taxiCost) {
-    console.log('Updating distance info:', distance, 'meters,', duration, 'seconds, taxi cost:', taxiCost);
-    const distanceInfo = document.getElementById('distance-info');
-    if (distanceInfo) {
-        distanceInfo.innerHTML = `
-            <p>距离：${(distance / 1000).toFixed(2)} 公里</p>
-            <p>预计驾车时间：${Math.round(duration / 60)} 分钟</p>
-            <p>预估出租车费用：${taxiCost} 元</p>
-        `;
-    }
 }
 
 // 更新时间筛选器UI
@@ -546,7 +538,7 @@ function selectRandomRestaurant() {
     const slider = document.getElementById('distance');
     if (cityElement && slider && nearestLocation) {
         const maxDistance = parseInt(slider.value);
-        const filteredRestaurants = filterRestaurants(maxDistance); // 调用过滤函数
+        const filteredRestaurants = filterRestaurants(maxDistance); // 调用过滤数
 
         if (filteredRestaurants.length === 0) {
             console.log('No restaurants available with current filters');
@@ -597,7 +589,7 @@ function updateDistanceFilterVisibility() {
         filterContainer.style.display = 'block';
         slider.value = directDistance ? "10" : "30";
         
-        // 使用 setTimeout 确保在 DOM 更新后更新背景
+        // 使用 setTimeout 确保在 DOM ���新后更新背景
         setTimeout(() => {
             updateSliderBackground(slider);
             updateTimeFilterUI(); // 更新滑块UI
@@ -689,23 +681,42 @@ function showUploadDataMessage(event) {
     alert('欢迎你呀~ 如果想使用你的收藏来玩，目前可以找我手动帮你hhh\n微信：myu221B');
 }
 
-function createHistoryCard(restaurant, distance, duration, taxiCost) {
-    const daysSinceFavorited = calculateDaysSinceFavorited(restaurant.time);
-    const cardHtml = `
-        <div class="history-card">
-            <h3>${restaurant.name}</h3>
-            <p>${restaurant.address}</p>
-            <p>距离: ${Math.round(distance / 1000)} 公里</p>
-            <p>预计驾车时间: ${Math.round(duration / 60)} 分钟</p>
-            <p>预计打车费: ${Math.round(taxiCost)} 元</p>
-            <p>收藏天数: ${daysSinceFavorited} 天</p>
-            <div class="card-actions">
-                <a href="${restaurant.url}" target="_blank" class="dianping-link">去大众点评查看</a>
-                <button class="delete-card" aria-label="删除">&times;</button>
-            </div>
+function addToHistory(restaurant, distance, duration, taxiCost) {
+  const historyCards = document.getElementById('history-cards');
+  const cardHtml = `
+    <div class="history-card">
+      <h3>${restaurant.name}</h3>
+      <p>${restaurant.address}</p>
+      <div class="favorite-time">已收藏 ${calculateDaysSinceFavorited(restaurant.time)} 天</div>
+      <div class="distance-info">
+        <div>
+          <p>距离</p>
+          <p>${distance ? Math.round(distance / 1000) + ' 公里' : '未知'}</p>
         </div>
-    `;
-    return cardHtml;
+        <div>
+          <p>预计驾车时间</p>
+          <p>${duration ? Math.round(duration / 60) + ' 分钟' : '未知'}</p>
+        </div>
+        <div>
+          <p>预计打车费</p>
+          <p>${taxiCost ? Math.round(taxiCost) + ' 元' : '未知'}</p>
+        </div>
+      </div>
+      <a href="${restaurant.url}" target="_blank" class="dianping-link">去大众点评查看</a>
+      <button class="delete-card" aria-label="删除">&times;</button>
+    </div>
+  `;
+  
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = cardHtml;
+  const card = tempDiv.firstElementChild;
+  
+  const deleteButton = card.querySelector('.delete-card');
+  deleteButton.addEventListener('click', function() {
+    card.remove();
+  });
+  
+  historyCards.insertBefore(card, historyCards.firstChild);
 }
 
 function calculateDaysSinceFavorited(favoriteDate) {
@@ -714,22 +725,6 @@ function calculateDaysSinceFavorited(favoriteDate) {
     const diffTime = Math.abs(today - favDate);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
-}
-
-function addToHistory(restaurant, distance, duration, taxiCost) {
-    const historyCards = document.getElementById('history-cards');
-    const cardHtml = createHistoryCard(restaurant, distance, duration, taxiCost);
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = cardHtml;
-    const card = tempDiv.firstElementChild;
-    
-    // 添加删除按钮的事件监听器
-    const deleteButton = card.querySelector('.delete-card');
-    deleteButton.addEventListener('click', function() {
-        card.remove();
-    });
-    
-    historyCards.insertBefore(card, historyCards.firstChild);
 }
 
 function updateDebugInfo() {
@@ -761,59 +756,121 @@ document.addEventListener('DOMContentLoaded', init);
 // 在全局作用域添加一个计数器
 let randomSelectionCount = 0;
 
+// 修改 showRandomResult 函数
 function showRandomResult(restaurant, distance, duration, taxiCost) {
     const totalRestaurants = filterRestaurants(parseInt(document.getElementById('distance').value)).length;
     const daysSinceFavorited = calculateDaysSinceFavorited(restaurant.time);
     
-    // 增加计数器
-    randomSelectionCount++;
+    const headerText = `${totalRestaurants} 个餐厅中，\n这一家今天和你很有缘分！！`;
     
-    // 根据计数器选择显示的文案
-    const headerText = randomSelectionCount >= 4 
-        ? "试了这么多次，点按钮时你在期望哪一个？😈" 
-        : `${totalRestaurants} 个餐厅中，这一家今天和你很有缘分！！`;
+    const overlay = document.getElementById('result-overlay');
+    const header = document.getElementById('result-header');
+    const content = document.getElementById('result-content');
     
-    const overlay = document.createElement('div');
-    overlay.className = 'result-overlay';
-    overlay.innerHTML = `
-        <div class="result-content">
-            <h2>${headerText}</h2>
-            <div class="restaurant-card">
-                <h3>${restaurant.name}</h3>
-                <p>${restaurant.address}</p>
-                <p>距离: ${Math.round(distance / 1000)} 公里</p>
-                <p>预计驾车时间: ${Math.round(duration / 60)} 分钟</p>
-                <p>预计打车费: ${Math.round(taxiCost)} 元</p>
-                <p>收藏天数: ${daysSinceFavorited} 天</p>
-                <a href="${restaurant.url}" target="_blank" class="dianping-link">去大众点评查看</a>
-            </div>
-            <button id="try-again">再试一次</button>
-            <button id="view-history">查看历史记录</button>
-        </div>
-    `;
+    header.textContent = headerText;
+
+    const template = document.getElementById('result-template');
+    const card = template.content.cloneNode(true);
+
+    const restaurantNameElement = card.querySelector('#restaurant-name');
+    restaurantNameElement.textContent = restaurant.name;
     
-    document.body.appendChild(overlay);
+    // 检查餐厅名称长度并添加适当的类
+    if (restaurant.name.length > 4) {
+        restaurantNameElement.classList.add('two-lines');
+    } else {
+        restaurantNameElement.classList.remove('two-lines');
+    }
+
+    card.querySelector('#restaurant-address').textContent = restaurant.address;
+
+    const distanceElement = card.querySelector('#restaurant-distance');
+    const durationElement = card.querySelector('#restaurant-duration');
+    const costElement = card.querySelector('#restaurant-cost');
+    const distanceInfoContainer = card.querySelector('.grid');
+
+    if (distance && duration && taxiCost) {
+        distanceElement.textContent = `${Math.round(distance / 1000)} 公里`;
+        durationElement.textContent = `${Math.round(duration / 60)} 分钟`;
+        costElement.textContent = `${Math.round(taxiCost)} 元`;
+        distanceInfoContainer.style.display = 'grid';
+    } else {
+        distanceInfoContainer.style.display = 'none';
+    }
+
+    let favoriteTimeText = '';
+
+    if (daysSinceFavorited >= 365) {
+        const years = Math.floor(daysSinceFavorited / 365);
+        const months = Math.floor((daysSinceFavorited % 365) / 30);
+        favoriteTimeText = `已收藏 ${years}年${months > 0 ? months + '个月' : ''}`;
+    } else if (daysSinceFavorited >= 30) {
+        const months = Math.floor(daysSinceFavorited / 30);
+        favoriteTimeText = `已收藏 ${months}个月`;
+    } else {
+        favoriteTimeText = `已收藏 ${daysSinceFavorited}天`;
+    }
+
+    card.querySelector('#restaurant-favorite-time').textContent = favoriteTimeText;
+    card.querySelector('#restaurant-link').href = restaurant.url;
+
+    content.innerHTML = ''; // 清空现有内容
+    content.appendChild(card);
     
-    // 点击蒙层非卡片区域关闭
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) {
-            overlay.remove();
-            randomSelectionCount = 0;
+    // 添加这一行来将餐厅添加到历史记录
+    addToHistory(restaurant, distance, duration, taxiCost);
+    
+    const tryAgainButton = document.getElementById('try-again');
+    const viewHistoryButton = document.getElementById('view-history');
+
+    // 移除旧的事件监听器
+    tryAgainButton.removeEventListener('click', tryAgainHandler);
+    viewHistoryButton.removeEventListener('click', viewHistoryHandler);
+
+    // 添加新的事件监听器
+    tryAgainButton.addEventListener('click', tryAgainHandler);
+    viewHistoryButton.addEventListener('click', viewHistoryHandler);
+
+    overlay.classList.remove('hidden');
+}
+
+// 将事件处理函数定义为单独的函数
+function tryAgainHandler() {
+    const overlay = document.getElementById('result-overlay');
+    overlay.classList.add('hidden');
+    const newRestaurant = selectRandomRestaurant();
+    if (newRestaurant) {
+        getRestaurantLocationAndCalculateDistance(newRestaurant);
+    }
+}
+
+function viewHistoryHandler() {
+    const overlay = document.getElementById('result-overlay');
+    overlay.classList.add('hidden');
+    document.getElementById('history').scrollIntoView({ behavior: 'smooth' });
+}
+
+function initializeOverlay() {
+    const overlay = document.getElementById('result-overlay');
+    const resultContent = document.getElementById('result-content');
+    const buttonContainer = document.querySelector('.button-container');
+    overlay.classList.add('hidden');
+
+    overlay.addEventListener('click', function(event) {
+        if (event.target === overlay) {
+            overlay.classList.add('hidden');
         }
     });
-    
-    document.getElementById('try-again').addEventListener('click', () => {
-        overlay.remove();
-        const newRestaurant = selectRandomRestaurant();
-        if (newRestaurant) {
-            getRestaurantLocationAndCalculateDistance(newRestaurant);
-        }
+
+    // 阻止点击内容区域和按钮区域时关闭蒙层
+    resultContent.addEventListener('click', function(event) {
+        event.stopPropagation();
     });
-    
-    document.getElementById('view-history').addEventListener('click', () => {
-        overlay.remove();
-        document.getElementById('history').scrollIntoView({ behavior: 'smooth' });
-        // 重置计数器
-        randomSelectionCount = 0;
+
+    buttonContainer.addEventListener('click', function(event) {
+        event.stopPropagation();
     });
 }
+
+// 在页面加载完成后调用初始化函数
+document.addEventListener('DOMContentLoaded', initializeOverlay);

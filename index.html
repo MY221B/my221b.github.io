@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>随机选餐厅</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="output.css"> <!-- 引入编译好的 CSS 文件 -->
 </head>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
 <script src="script.js"></script>
@@ -40,7 +40,7 @@
                     <div class="select-wrapper">
                         <label for="city">城市</label>
                         <select id="city">
-                            <option value="所有城市">所有城市</option>
+                            <option value="所有城市">所有市</option>
                         </select>
                         <span class="selected-city">所有城市</span>
                     </div>
@@ -62,7 +62,7 @@
                 <img src="骰子.svg" alt="骰子" class="dice-icon">
             </button>
 
-            <section class="history">
+            <section id="history" class="history">
                 <div id="history-cards"></div>
             </section>
 
@@ -71,6 +71,50 @@
         </main>
     </div>
 
+    <div id="result-overlay" class="fixed inset-0 backdrop-blur-sm bg-black bg-opacity-70 flex flex-col items-center justify-start py-8 hidden">
+      <h2 id="result-header" class="text-white text-2xl font-bold mb-4 px-4 text-center mt-20"></h2>
+      
+      <div id="result-content" class="w-[349px] bg-white rounded-lg shadow-lg overflow-hidden mt-8"></div>
+      
+      <!-- 修改这里的结构和类名 -->
+      <div class="button-container flex justify-center items-center w-full max-w-md px-6 mt-auto mb-44">
+        <button id="view-history" class="history-button">查看历史记录</button>
+        <button id="try-again" class="try-again-button ml-[15px]">
+          <img src="骰子.svg" alt="骰子" class="mr-2 w-6 h-6 inline">
+          <span>再试一次</span>
+        </button>
+      </div>
+    </div>
+
     <script src="script.js"></script>
+
+    <!-- 在 body 标签的末尾添加这个模板 -->
+    <template id="result-template">
+      <div class="p-6 flex flex-col ">
+        <div>
+          <h3 id="restaurant-name" class="font-bold text-3xl leading-tight mb-2"></h3>
+          <p id="restaurant-address" class="text-sm text-black opacity-50 mb-2"></p>
+          <div id="restaurant-favorite-time" class="bg-yellow-300 text-black text-xs font-semibold px-2 py-1 rounded mb-4 inline-block"></div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4 text-center w-full" style="margin-top: 25px;">
+            <div>
+              <p class="text-sm font-medium text-gray-600">距离</p>
+              <p id="restaurant-distance" class="text-lg font-semibold"></p>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-gray-600">预计驾车时间</p>
+              <p id="restaurant-duration" class="text-lg font-semibold"></p>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-gray-600">预计打车费</p>
+              <p id="restaurant-cost" class="text-lg font-semibold"></p>
+            </div>
+        </div>
+        <div style="margin-top: 40px;">
+            <a id="restaurant-link" href="#" target="_blank" class="dianping-button block w-full">去大众点评查看</a>
+        </div>
+      </div>
+    </template>
 </body>
 </html>
