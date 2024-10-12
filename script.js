@@ -54,7 +54,7 @@ function onCSVDataLoaded() {
     // 其他需在数据加载后执行的操作...
 }
 
-// 修改 processCSVData 函数，在数据处理完成后调用 onCSVDataLoaded
+// 修改 processCSVData 函数，在数据处��完成后调用 onCSVDataLoaded
 function processCSVData(csvData) {
     Papa.parse(csvData, {
         header: true,
@@ -640,7 +640,7 @@ function init() {
     loadDefaultCSV();
     requestUserLocation();
     
-    // 使用 setTimeout 来确保在其他异步操作完成后初始化滑块
+    // 使用 setTimeout 来确保在其他异步操作完成后初始化��块
     setTimeout(() => {
         const slider = document.getElementById('distance');
         if (slider) {
@@ -794,10 +794,17 @@ let randomSelectionCount = 0;
 
 // 修改 showRandomResult 函数
 function showRandomResult(restaurant, distance, duration, taxiCost) {
+    randomSelectionCount++; // 增加计数
+
     const totalRestaurants = filterRestaurants(parseInt(document.getElementById('distance').value)).length;
     const daysSinceFavorited = calculateDaysSinceFavorited(restaurant.time);
     
-    const headerText = `${totalRestaurants} 个餐厅中，\n这一家今天和你很有缘分！！`;
+    let headerText;
+    if (randomSelectionCount > 3) {
+        headerText = '多试几次吧\n硬币落下时，心中会有答案';
+    } else {
+        headerText = `${totalRestaurants} 个餐厅中，\n这一家今天和你很有缘分！！`;
+    }
     
     const overlay = document.getElementById('result-overlay');
     const header = document.getElementById('result-header');
@@ -874,6 +881,7 @@ function showRandomResult(restaurant, distance, duration, taxiCost) {
 function tryAgainHandler() {
     const overlay = document.getElementById('result-overlay');
     overlay.classList.add('hidden');
+    // 不重置计数，因为这是继续尝试
     const newRestaurant = selectRandomRestaurant();
     if (newRestaurant) {
         getRestaurantLocationAndCalculateDistance(newRestaurant);
@@ -883,6 +891,7 @@ function tryAgainHandler() {
 function viewHistoryHandler() {
     const overlay = document.getElementById('result-overlay');
     overlay.classList.add('hidden');
+    randomSelectionCount = 0; // 重置计数
     document.getElementById('history').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -895,6 +904,7 @@ function initializeOverlay() {
     overlay.addEventListener('click', function(event) {
         if (event.target === overlay) {
             overlay.classList.add('hidden');
+            randomSelectionCount = 0; // 重置计数
         }
     });
 
