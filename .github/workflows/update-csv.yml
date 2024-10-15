@@ -1,0 +1,38 @@
+name: Update CSV on Supabase
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'restaurants.csv'
+
+jobs:
+  update-csv:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Use Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: '14'
+    - run: npm install @supabase/supabase-js
+    - name: Upload to Supabase
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      run: |
+        node -e "
+        const { createClient } = require('@supabase/supabase-js');
+        const fs = require('fs');
+        const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+        (async () => {
+          const { data, error } = await supabase.storage
+            .from('restaurants-data')
+            .upload('restaurants.csv', fs.readFileSync('restaurants.csv'), {
+              cacheControl: '3600',
+              upsert: true
+            });
+          if (error) console.error('Error:', error);
+          else console.log('File uploaded successfully:', data);
+        })()
+        "
