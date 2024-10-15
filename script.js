@@ -30,7 +30,7 @@ function loadDefaultCSV() {
     restaurantCount.classList.add('hidden');
     errorMessage.classList.add('hidden');
 
-    fetch('https://raw.githubusercontent.com/MY221B/my221b.github.io/main/restaurants.csv')
+    fetch('https://gganjajxoehdxpiyiqdl.supabase.co/storage/v1/object/public/restaurants-data/restaurants.csv')
         .then(response => response.text())
         .then(csvData => {
             processCSVData(csvData);
