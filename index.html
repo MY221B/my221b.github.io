@@ -78,12 +78,12 @@
     <div id="result-overlay" class="fixed inset-0 backdrop-blur-sm bg-black bg-opacity-70 flex flex-col items-center justify-start py-8 hidden">
       <h2 id="result-header" class="text-white text-2xl font-bold mb-4 px-4 text-center mt-12"></h2>
       
-      <div id="result-content" class="w-[349px] bg-white rounded-lg shadow-lg overflow-hidden mt-4"></div>
+      <div id="result-content" class="w-[349px] bg-white rounded-lg shadow-lg overflow-hidden mt-4 mb-2"></div>
       
       <!-- 修改这里的结构和类名 -->
-      <div class="button-container flex justify-center items-center w-full max-w-md px-6 mt-auto mb-32">
-        <button id="view-history" class="history-button">历史记录</button>
-        <button id="try-again" class="try-again-button ml-[15px]">
+      <div class="button-container flex justify-center items-center w-full max-w-md px-6 mb-28 mt-2">
+        <button id="view-history" class="history-button mt-2">历史记录</button>
+        <button id="try-again" class="try-again-button ml-[15px] mt-2">
           <img src="骰子.svg" alt="骰子" class="mr-2 w-6 h-6 inline">
           <span>再试一次</span>
         </button>
@@ -98,10 +98,10 @@
         <div>
           <h3 id="restaurant-name" class="font-bold text-3xl leading-tight mb-2"></h3>
           <p id="restaurant-address" class="text-sm text-black opacity-50 mb-2"></p>
-          <div id="restaurant-favorite-time" class="bg-yellow-300 text-black text-xs font-semibold px-2 py-1 rounded mb-4 inline-block"></div>
+          <div id="restaurant-favorite-time" class="bg-yellow-300 text-black text-xs font-semibold px-2 py-1 rounded mb-1 inline-block"></div>
         </div>
 
-        <div class="grid grid-cols-3 gap-4 text-center w-full" style="margin-top: 25px;">
+        <div class="grid grid-cols-3 gap-4 text-center w-full mt-4">
             <div>
               <p class="text-sm font-medium text-gray-600">距离</p>
               <p id="restaurant-distance" class="text-lg font-semibold"></p>

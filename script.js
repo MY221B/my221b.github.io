@@ -714,7 +714,7 @@ function clearHistory() {
 // 添加显示上传数据消息的函数
 function showUploadDataMessage(event) {
     event.preventDefault();
-    alert('欢迎你呀~ 如果想使用你的收藏来玩，目前可以找我手动帮你hhh\n微信：myu221B');
+    alert('如果你想用自己的收藏餐厅，需要给我你的大众点评账号名称，微信上发我~：myu221B');
 }
 
 function addToHistory(restaurant, distance, duration, taxiCost) {
