@@ -20,26 +20,30 @@ let loadingMessage, errorMessage, restaurantCount;
 
 // 修改 loadDefaultCSV 函数，在数据加载完成后调用 onCSVDataLoaded
 function loadDefaultCSV() {
-    if (!loadingMessage || !restaurantCount || !errorMessage) {
-        console.warn('DOM elements not found. Retrying in 100ms...');
-        setTimeout(loadDefaultCSV, 100);
-        return;
-    }
+    return new Promise((resolve, reject) => {
+        if (!loadingMessage || !restaurantCount || !errorMessage) {
+            console.warn('DOM elements not found. Retrying in 100ms...');
+            setTimeout(() => loadDefaultCSV().then(resolve).catch(reject), 100);
+            return;
+        }
 
-    loadingMessage.classList.remove('hidden');
-    restaurantCount.classList.add('hidden');
-    errorMessage.classList.add('hidden');
+        loadingMessage.classList.remove('hidden');
+        restaurantCount.classList.add('hidden');
+        errorMessage.classList.add('hidden');
 
-    fetch('https://gganjajxoehdxpiyiqdl.supabase.co/storage/v1/object/public/restaurants-data/restaurants.csv')
-        .then(response => response.text())
-        .then(csvData => {
-            processCSVData(csvData);
-        })
-        .catch(error => {
-            loadingMessage.classList.add('hidden');
-            errorMessage.classList.remove('hidden');
-            console.error('Error loading default CSV file:', error);
-        });
+        fetch('https://gganjajxoehdxpiyiqdl.supabase.co/storage/v1/object/public/restaurants-data/restaurants.csv')
+            .then(response => response.text())
+            .then(csvData => {
+                processCSVData(csvData);
+                resolve();
+            })
+            .catch(error => {
+                loadingMessage.classList.add('hidden');
+                errorMessage.classList.remove('hidden');
+                console.error('Error loading default CSV file:', error);
+                reject(error);
+            });
+    });
 }
 
 function onCSVDataLoaded() {
@@ -54,7 +58,7 @@ function onCSVDataLoaded() {
     // 其他需在数据加载后执行的操作...
 }
 
-// 修改 processCSVData 函数，在数据处��完成后调用 onCSVDataLoaded
+// 修改 processCSVData 函数，在数据处完成后调用 onCSVDataLoaded
 function processCSVData(csvData) {
     Papa.parse(csvData, {
         header: true,
@@ -151,21 +155,36 @@ function handleLocationFailure() {
     updateRestaurantCount();
 }
 
-// 搜索用户输入的位
-function searchLocation() {
-    const address = document.getElementById('location').value;
-
-    // 移除对空地址的检查，避免弹出提示框
-    if (!address) {
-        // 这里可选不做任何事，或者以给用户一个提示，但不弹出框
+// 修改 searchLocation 函数
+function searchLocation(event) {
+    console.log('searchLocation called', event ? event.type : 'manually');
+    
+    // 如果是由 focus 事件触发的，直接返回
+    if (event && event.type === 'focus') {
+        console.log('Ignoring focus event');
         return;
     }
+
+    // 如果传入了事件对象，阻止默认行为
+    if (event) {
+        event.preventDefault();
+    }
+
+    const address = document.getElementById('location').value;
+
+    if (!address) {
+        console.log('No address entered, returning');
+        return;
+    }
+
+    console.log('Searching for address:', address);
 
     const geocodeUrl = `https://restapi.amap.com/v3/geocode/geo?address=${encodeURIComponent(address)}&output=json&key=${API_KEY}`;
     
     fetch(geocodeUrl)
         .then(response => response.json())
         .then(data => {
+            console.log('Geocode response:', data);
             if (data.status === '1' && data.geocodes.length > 0) {
                 const geocode = data.geocodes[0];
                 const location = geocode.location.split(',');
@@ -185,6 +204,7 @@ function searchLocation() {
                 alert('位置已更新');
                 calculateNearestLocation(userPosition);
             } else {
+                console.log('Unable to find location');
                 alert('无法找到该位置，请尝试更详细的地址');
             }
         })
@@ -627,7 +647,7 @@ function updateDistanceFilterVisibility() {
     updateDebugInfo();
 }
 
-// 初始化函数
+// 修改 init 函数
 function init() {
     initCount++;
     console.log('Initializing... Count:', initCount);
@@ -640,7 +660,7 @@ function init() {
     loadDefaultCSV();
     requestUserLocation();
     
-    // 使用 setTimeout 来确保在其他异步操作完成后初始化��块
+    // 使用 setTimeout 来确保在其他异步操作完成后初始化块
     setTimeout(() => {
         const slider = document.getElementById('distance');
         if (slider) {
@@ -667,10 +687,30 @@ function init() {
         });
     }
 
-    // 添加更新地址按钮的事件监听器
-    const updateLocationButton = document.querySelector('.location-select');
+    // 更新地址按钮的事件监听器
+    const updateLocationButton = document.querySelector('.location-select button');
     if (updateLocationButton) {
+        console.log('Adding click event listener to update location button');
+        updateLocationButton.removeEventListener('click', searchLocation);
         updateLocationButton.addEventListener('click', searchLocation);
+    } else {
+        console.warn('Update location button not found');
+    }
+
+    // 移除输入框的所有事件监听器
+    const locationInput = document.getElementById('location');
+    if (locationInput) {
+        console.log('Removing all event listeners from location input');
+        locationInput.removeEventListener('keypress', searchLocation);
+        locationInput.removeEventListener('focus', searchLocation);
+        locationInput.removeEventListener('click', searchLocation);
+        
+        // 添加一个焦点事件监听器，仅用于调试
+        locationInput.addEventListener('focus', () => {
+            console.log('Location input focused');
+        });
+    } else {
+        console.warn('Location input not found');
     }
 
     // 添加城市选择事件监听器
