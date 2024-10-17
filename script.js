@@ -754,7 +754,7 @@ function clearHistory() {
 // 添加显示上传数据消息的函数
 function showUploadDataMessage(event) {
     event.preventDefault();
-    alert('如果你想用自己的收藏餐厅，需要给我你的大众点评账号名称，微信上发我~：myu221B');
+    alert('如果你想用自己的收藏餐厅，需要给我你的大众点评账号名称，微信上发我~：myu221B \n 筛选里的直线距离也可以改成真实的打车距离');
 }
 
 function addToHistory(restaurant, distance, duration, taxiCost) {
