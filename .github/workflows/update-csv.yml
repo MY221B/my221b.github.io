@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'restaurants.csv'
+      - 'rest_data_process/restaurants.csv'
 
 jobs:
   update-csv:
@@ -28,7 +28,7 @@ jobs:
         (async () => {
           const { data, error } = await supabase.storage
             .from('restaurants-data')
-            .upload('restaurants.csv', fs.readFileSync('restaurants.csv'), {
+            .upload('restaurants.csv', fs.readFileSync('rest_data_process/restaurants.csv'), {
               cacheControl: '3600',
               upsert: true
             });
