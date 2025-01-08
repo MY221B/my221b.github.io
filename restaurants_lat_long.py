@@ -23,7 +23,7 @@ def get_lat_long(city, address):
         return None
 
 # 读取CSV文件
-df = pd.read_csv('restaurants.csv')
+df = pd.read_csv('rest_data_process/restaurants.csv')
 
 # 检查是否存在经纬度列
 if '经纬度' not in df.columns:
@@ -37,4 +37,4 @@ for index, row in df[df['经纬度'].isnull()].iterrows():
 df.insert(4, '经纬度', df.pop('经纬度'))
 
 # 直接覆盖原有的CSV文件
-df.to_csv('restaurants.csv', index=False)
+df.to_csv('rest_data_process/restaurants.csv', index=False)
