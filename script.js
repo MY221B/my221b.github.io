@@ -31,7 +31,7 @@ function loadDefaultCSV() {
         restaurantCount.classList.add('hidden');
         errorMessage.classList.add('hidden');
 
-        fetch('https://gganjajxoehdxpiyiqdl.supabase.co/storage/v1/object/public/restaurants-data/restaurants.csv')
+        fetch('https://tazccareqiurrsgfzong.supabase.co/storage/v1/object/public/restaurants-data/restaurants.csv')
             .then(response => response.text())
             .then(csvData => {
                 processCSVData(csvData);
